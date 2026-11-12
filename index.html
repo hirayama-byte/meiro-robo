@@ -47,6 +47,9 @@
   #lvTitle { font-size: 22px; }
   #stage { flex: 1; position: relative; display: flex; align-items: center; justify-content: center; min-height: 0; }
   #cv { touch-action: none; background: transparent; }
+  .zoom { position: absolute; top: 6px; right: 10px; display: flex; flex-direction: column; gap: 8px; z-index: 2; }
+  .zoom button { width: 58px; height: 58px; border-radius: 16px; background: rgba(255,255,255,.92); border: 2px solid var(--line); font-size: 28px; font-weight: 800; box-shadow: 0 2px 0 rgba(0,0,0,.08); }
+  .zoom button.sm { font-size: 13px; line-height: 1.15; }
   .tools { display: flex; justify-content: center; gap: 12px; padding: 8px 12px 14px; flex-wrap: wrap; }
   .tool { min-width: 150px; padding: 14px 18px; border-radius: 20px; background: #fff; border: 3px solid var(--line); font-size: 22px; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 8px; }
   .tool.on { border-color: var(--orange); background: #fff7ed; }
@@ -106,7 +109,7 @@
     <button class="icon" id="howBtn">？</button>
   </div>
   <div class="prog"><span id="progTxt">いきどまり 0 / 0</span><div class="track"><div class="fill" id="progFill"></div></div></div>
-  <div id="stage"><canvas id="cv"></canvas></div>
+  <div id="stage"><canvas id="cv"></canvas><div class="zoom"><button id="zIn" aria-label="おおきく">＋</button><button id="zOut" aria-label="ちいさく">−</button><button id="zReset" class="sm" aria-label="もとの おおきさ" style="font-size:16px">もと</button></div></div>
   <div class="tools">
     <button class="tool on" id="tFill">✏️ ぬりつぶす</button>
     <button class="tool" id="tPath">🖍️ ゴールまで なぞる</button>
@@ -418,7 +421,7 @@ function renderRobots() {
 function modal(html) { $('modalCard').innerHTML = html; $('modal').classList.add('on'); }
 function closeModal() { $('modal').classList.remove('on'); }
 $('howBtn').onclick = function () {
-  modal('<h3>あそびかた</h3><p class="note">✏️ <b>ぬりつぶす</b>：いきどまりの みちを ゆびで なぞって、えんぴつで ぬりつぶそう。ゴールへの みちは ぬれないよ。<br>ぜんぶ ぬれたら、しろい 1ぽんみちが のこって クリア！<br><br>🖍️ <b>ゴールまで なぞる</b>：🟢スタートから ⭐ゴールまで なぞっても クリアだよ。<br><br>あわてなくて だいじょうぶ。1ぽんずつ ぬっていけば、かならず ゴールに つくよ。</p><div class="btns"><button class="big b-orange" id="mOk">わかった！</button></div>');
+  modal('<h3>あそびかた</h3><p class="note">✏️ <b>ぬりつぶす</b>：いきどまりの みちを ゆびで なぞって、えんぴつで ぬりつぶそう。ゴールへの みちは ぬれないよ。<br>ぜんぶ ぬれたら、しろい 1ぽんみちが のこって クリア！<br><br>🖍️ <b>ゴールまで なぞる</b>：🟢スタートから ⭐ゴールまで なぞっても クリアだよ。<br><br>🔍 <b>おおきく する</b>：2ほんの ゆびで ひろげるか、みぎうえの ＋ で おおきく できるよ。2ほんゆびで うごかせるよ。<br><br>あわてなくて だいじょうぶ。1ぽんずつ ぬっていけば、かならず ゴールに つくよ。</p><div class="btns"><button class="big b-orange" id="mOk">わかった！</button></div>');
   $('mOk').onclick = closeModal;
 };
 $('goParent').onclick = function () {
@@ -429,8 +432,10 @@ $('goParent').onclick = function () {
 
 // ---------- あそぶ ----------
 var G = null, mode = 'fill', cv = $('cv'), ctx = cv.getContext('2d'), geo = null;
+var view = { z: 1, tx: 0, ty: 0 }, ZMAX = 6; // 拡大（2本指のピンチ・＋−ボタン）。z=1 がもとの大きさ
 function startLevel(L) {
   var m = makeMaze(L);
+  view = { z: 1, tx: 0, ty: 0 };
   G = { m: m, filled: new Array(m.n * m.n).fill(false), route: [m.start], strokes: [], done: !!save.cleared[L] && false, cleared: false };
   $('lvTitle').textContent = 'レベル ' + L + '　' + m.ch.emoji + ' ' + m.ch.name + '　★' + m.tier;
   setMode('fill'); show('play'); requestAnimationFrame(layout);
@@ -449,7 +454,7 @@ function layout() {
   cv.style.width = size + 'px'; cv.style.height = size + 'px'; cv.width = Math.round(size * dpr); cv.height = Math.round(size * dpr);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   geo = { w: size, h: size, s: s, cs: s * 100 / G.m.n, ox: pad, oy: pad };
-  draw();
+  clampView(); draw();
 }
 window.addEventListener('resize', function () { if ($('play').classList.contains('on')) layout(); });
 function cellRect(i) { var n = G.m.n, x = i % n, y = (i - x) / n; return [geo.ox + x * geo.cs, geo.oy + y * geo.cs]; }
@@ -457,6 +462,7 @@ function draw() {
   if (!G || !geo) return;
   var m = G.m, n = m.n, cs = geo.cs, ch = m.ch, i;
   ctx.clearRect(0, 0, geo.w, geo.h);
+  ctx.save(); ctx.translate(view.tx, view.ty); ctx.scale(view.z, view.z); // 拡大しているときは、ぜんぶを拡大して描く
   // キャラクター（うしろ → からだ → 顔まわり）
   ctx.save(); ctx.translate(geo.ox, geo.oy); ctx.scale(geo.s, geo.s);
   drawParts(ctx, ch, ch.back, 1.4); drawParts(ctx, ch, ch.body, 1.4); drawParts(ctx, ch, ch.front, 1.4);
@@ -494,6 +500,7 @@ function draw() {
   var s = cellRect(m.start), g = cellRect(m.goal);
   ctx.fillStyle = '#22c55e'; ctx.beginPath(); ctx.arc(s[0] + cs / 2, s[1] + cs / 2, cs * 0.3, 0, Math.PI * 2); ctx.fill();
   ctx.font = Math.round(cs * 0.72) + 'px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('⭐', g[0] + cs / 2, g[1] + cs / 2 + cs * 0.04);
+  ctx.restore();
   // 進みぐあい
   var f = 0; for (i = 0; i < n * n; i++) if (G.filled[i]) f++;
   $('progTxt').textContent = 'いきどまり ' + f + ' / ' + m.dead; $('progFill').style.width = (m.dead ? f / m.dead * 100 : 0) + '%';
@@ -501,18 +508,35 @@ function draw() {
 // ゆびの位置 → マス
 function cellAt(px, py) { var x = Math.floor((px - geo.ox) / geo.cs), y = Math.floor((py - geo.oy) / geo.cs), n = G.m.n; if (x < 0 || y < 0 || x >= n || y >= n) return -1; var i = y * n + x; return G.m.ins[i] ? i : -1; }
 function linked(a, b) { var n = G.m.n; if (b === a + 1) return G.m.open[a] & 2; if (b === a - 1) return G.m.open[a] & 8; if (b === a + n) return G.m.open[a] & 4; if (b === a - n) return G.m.open[a] & 1; return 0; }
-var touch = null;
-function pos(e) { var r = cv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; }
+var touch = null, fingers = {}, pinch = null, lockDraw = false;
+function screenPos(e) { var r = cv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; }
+function toMaze(p) { return [(p[0] - view.tx) / view.z, (p[1] - view.ty) / view.z]; } // 画面の位置 → 拡大前の位置
+function pos(e) { return toMaze(screenPos(e)); }
+function clampView() { if (!geo) return; view.z = Math.max(1, Math.min(ZMAX, view.z)); var minX = geo.w - geo.w * view.z, minY = geo.h - geo.h * view.z; view.tx = Math.min(0, Math.max(minX, view.tx)); view.ty = Math.min(0, Math.max(minY, view.ty)); }
+function zoomAt(z, px, py) { var mp = toMaze([px, py]); view.z = Math.max(1, Math.min(ZMAX, z)); view.tx = px - mp[0] * view.z; view.ty = py - mp[1] * view.z; clampView(); draw(); }
+function cancelStroke() { // 2本目の指がふれたら、1本目でぬりかけた分はなかったことにする（ピンチのつもりのため）
+  if (!touch) return; var s = touch.stroke; if (s.type === 'fill') s.cells.forEach(function (c) { G.filled[c] = false; }); else G.route = s.prev; touch = null;
+}
+function pinchInfo() { var ps = Object.keys(fingers).map(function (k) { return fingers[k]; }); var a = ps[0], b = ps[1]; return { d: Math.hypot(a[0] - b[0], a[1] - b[1]), m: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2] }; }
 cv.addEventListener('pointerdown', function (e) {
-  if (!G || G.cleared) return; e.preventDefault(); cv.setPointerCapture(e.pointerId);
+  if (!G) return; e.preventDefault(); try { cv.setPointerCapture(e.pointerId); } catch (err) {}
+  fingers[e.pointerId] = screenPos(e);
+  if (Object.keys(fingers).length >= 2) { cancelStroke(); lockDraw = true; var pi = pinchInfo(); pinch = { d0: pi.d, m0: pi.m, z0: view.z, mp: toMaze(pi.m) }; draw(); return; }
+  if (G.cleared || lockDraw) return;
   var p = pos(e), c = cellAt(p[0], p[1]); if (c < 0) return;
-  if (mode === 'fill') { touch = { last: c, p: p, stroke: { type: 'fill', cells: [] } }; paint(c); }
+  if (mode === 'fill') { touch = { last: c, p: p, id: e.pointerId, stroke: { type: 'fill', cells: [] } }; paint(c); }
   else { // なぞる: 道のどこからでも続きをなぞれる（スタートか、いまの道の上から）
-    var at = G.route.indexOf(c); if (at < 0) return; touch = { last: c, p: p, stroke: { type: 'path', prev: G.route.slice() } }; G.route = G.route.slice(0, at + 1); }
+    var at = G.route.indexOf(c); if (at < 0) return; touch = { last: c, p: p, id: e.pointerId, stroke: { type: 'path', prev: G.route.slice() } }; G.route = G.route.slice(0, at + 1); }
   draw();
 });
 cv.addEventListener('pointermove', function (e) {
-  if (!touch) return; e.preventDefault();
+  if (!G || !fingers[e.pointerId]) return; e.preventDefault();
+  fingers[e.pointerId] = screenPos(e);
+  if (pinch && Object.keys(fingers).length >= 2) { // ピンチ: 指の間の広さで拡大、指の真ん中で移動
+    var pi = pinchInfo(), z = Math.max(1, Math.min(ZMAX, pinch.z0 * pi.d / Math.max(10, pinch.d0)));
+    view.z = z; view.tx = pi.m[0] - pinch.mp[0] * z; view.ty = pi.m[1] - pinch.mp[1] * z; clampView(); draw(); return;
+  }
+  if (!touch || touch.id !== e.pointerId) return;
   var p = pos(e), dx = p[0] - touch.p[0], dy = p[1] - touch.p[1], dist = Math.hypot(dx, dy), steps = Math.max(1, Math.ceil(dist / (geo.cs / 3)));
   var from = touch.p;
   for (var k = 1; k <= steps && touch; k++) step(from[0] + dx * k / steps, from[1] + dy * k / steps); // ゴールに着いたら touch は空になる
@@ -526,10 +550,19 @@ function step(px, py) {
 }
 function paint(c) { if (G.m.sol[c] || G.filled[c]) return; G.filled[c] = true; touch.stroke.cells.push(c); }
 function finishTouch() { if (!touch) return; var s = touch.stroke; touch = null; if (s.type === 'fill' && !s.cells.length) return; G.strokes.push(s); }
-['pointerup', 'pointercancel', 'lostpointercapture'].forEach(function (ev) { cv.addEventListener(ev, function () {
-  if (!touch) return; finishTouch(); draw();
+['pointerup', 'pointercancel', 'lostpointercapture'].forEach(function (ev) { cv.addEventListener(ev, function (e) {
+  if (!fingers[e.pointerId]) return; delete fingers[e.pointerId];
+  if (Object.keys(fingers).length < 2) pinch = null;
+  if (!Object.keys(fingers).length) lockDraw = false; // 指が全部はなれたら、また塗れる
+  if (!touch || touch.id !== e.pointerId) return; finishTouch(); draw();
   var f = G.filled.filter(Boolean).length; if (!G.cleared && f >= G.m.dead) win();
 }); });
+
+// ＋ − ボタン・パソコンのホイール
+$('zIn').onclick = function () { if (geo) zoomAt(view.z * 1.5, geo.w / 2, geo.h / 2); };
+$('zOut').onclick = function () { if (geo) zoomAt(view.z / 1.5, geo.w / 2, geo.h / 2); };
+$('zReset').onclick = function () { view = { z: 1, tx: 0, ty: 0 }; draw(); };
+cv.addEventListener('wheel', function (e) { if (!geo) return; e.preventDefault(); var p = screenPos(e); zoomAt(view.z * (e.deltaY < 0 ? 1.2 : 1 / 1.2), p[0], p[1]); }, { passive: false });
 
 // ---------- クリア ----------
 function win() {
