@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="めいろロボ">
+<meta name="theme-color" content="#fff7ed">
+<title>めいろロボ</title>
+<style>
+  :root {
+    --bg: #fff7ed; --card: #ffffff; --ink: #1f2937; --muted: #6b7280; --line: #e5e7eb;
+    --orange: #f97316; --teal: #0d9488; --pencil: #c4c7cc; --wall: #2b2f36; --path: #f97316;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font-family: "Hiragino Maru Gothic ProN", "Hiragino Sans", "Yu Gothic", system-ui, sans-serif; -webkit-user-select: none; user-select: none; overscroll-behavior: none; }
+  button { font: inherit; color: inherit; border: 0; cursor: pointer; }
+  .screen { position: fixed; inset: 0; display: none; flex-direction: column; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+  .screen.on { display: flex; }
+  .big { border-radius: 22px; padding: 18px 28px; font-size: 26px; font-weight: 800; box-shadow: 0 4px 0 rgba(0,0,0,.12); }
+  .b-orange { background: var(--orange); color: #fff; } .b-teal { background: var(--teal); color: #fff; } .b-white { background: #fff; border: 2px solid var(--line); }
+  .bar { display: flex; align-items: center; gap: 10px; padding: 10px 14px; }
+  .bar h2 { margin: 0; font-size: 22px; flex: 1; text-align: center; }
+  .icon { width: 54px; height: 54px; border-radius: 16px; background: #fff; border: 2px solid var(--line); font-size: 26px; display: grid; place-items: center; }
+  /* ホーム */
+  #home { align-items: center; justify-content: center; gap: 18px; text-align: center; }
+  #home h1 { font-size: 54px; margin: 0; letter-spacing: 2px; }
+  #home h1 span { color: var(--orange); }
+  #home .sub { color: var(--muted); font-size: 20px; margin: 0 0 8px; }
+  #homeRobot { width: 200px; height: 200px; }
+  .homeBtns { display: flex; flex-direction: column; gap: 14px; width: min(420px, 86vw); }
+  .parent { margin-top: 6px; color: var(--muted); font-size: 15px; text-decoration: underline; background: none; }
+  /* レベルえらび */
+  .grid { flex: 1; overflow-y: auto; padding: 10px 16px 30px; display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 12px; align-content: start; -webkit-overflow-scrolling: touch; }
+  .lv { aspect-ratio: 1; border-radius: 18px; background: #fff; border: 2px solid var(--line); display: flex; flex-direction: column; align-items: center; justify-content: center; font-weight: 800; font-size: 26px; }
+  .lv small { font-size: 26px; line-height: 1.1; }
+  .lv.done { background: #ecfdf5; border-color: #6ee7b7; }
+  .lv.next { border-color: var(--orange); box-shadow: 0 0 0 4px #fed7aa; }
+  .lv.lock { opacity: .35; }
+  .sec { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 18px; color: var(--muted); margin-top: 8px; }
+  .sec svg { width: 44px; height: 44px; }
+  /* あそぶ */
+  #play .bar { padding-bottom: 4px; }
+  #lvTitle { font-size: 22px; }
+  #stage { flex: 1; position: relative; display: flex; align-items: center; justify-content: center; min-height: 0; }
+  #cv { touch-action: none; background: transparent; }
+  .tools { display: flex; justify-content: center; gap: 12px; padding: 8px 12px 14px; flex-wrap: wrap; }
+  .tool { min-width: 150px; padding: 14px 18px; border-radius: 20px; background: #fff; border: 3px solid var(--line); font-size: 22px; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 8px; }
+  .tool.on { border-color: var(--orange); background: #fff7ed; }
+  .tool.small { min-width: 0; }
+  .prog { display: flex; align-items: center; gap: 10px; padding: 0 18px; font-size: 16px; color: var(--muted); font-weight: 700; }
+  .prog .track { flex: 1; height: 12px; border-radius: 6px; background: #e5e7eb; overflow: hidden; }
+  .prog .fill { height: 100%; width: 0; background: #9ca3af; transition: width .2s; }
+  /* ごほうび */
+  .modal { position: fixed; inset: 0; background: rgba(17,24,39,.45); display: none; align-items: center; justify-content: center; z-index: 10; padding: 20px; }
+  .modal.on { display: flex; }
+  .card { background: #fff; border-radius: 28px; padding: 24px 24px 22px; text-align: center; width: min(520px, 94vw); max-height: 94vh; overflow-y: auto; box-shadow: 0 20px 40px rgba(0,0,0,.2); }
+  .card h3 { margin: 4px 0 8px; font-size: 30px; }
+  .card p { margin: 6px 0 14px; font-size: 20px; color: #374151; line-height: 1.6; }
+  .card .robo { width: 240px; height: 240px; }
+  .card .btns { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
+  .pop { animation: pop .6s ease-out; }
+  @keyframes pop { 0% { transform: scale(.4); opacity: 0; } 70% { transform: scale(1.12); } 100% { transform: scale(1); opacity: 1; } }
+  .glow { animation: glow 1s ease-in-out infinite alternate; }
+  @keyframes glow { from { filter: drop-shadow(0 0 2px #fbbf24); } to { filter: drop-shadow(0 0 12px #f59e0b); } }
+  /* ずかん */
+  .robos { flex: 1; overflow-y: auto; padding: 10px 16px 30px; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; align-content: start; }
+  .rcard { background: #fff; border-radius: 22px; border: 2px solid var(--line); padding: 10px; text-align: center; }
+  .rcard svg { width: 100%; height: auto; max-width: 200px; }
+  .rcard b { display: block; font-size: 18px; }
+  .rcard span { color: var(--muted); font-size: 15px; }
+  .note { text-align: left; font-size: 17px !important; }
+  .confetti { position: fixed; top: -20px; font-size: 30px; pointer-events: none; z-index: 20; animation: fall linear forwards; }
+  @keyframes fall { to { transform: translateY(110vh) rotate(540deg); } }
+</style>
+</head>
+<body>
+
+<!-- ホーム -->
+<section class="screen on" id="home">
+  <svg id="homeRobot" viewBox="0 0 200 200"></svg>
+  <h1>めいろ<span>ロボ</span></h1>
+  <p class="sub">いきどまりを ぬりつぶして、ゴールへの みちを みつけよう！</p>
+  <div class="homeBtns">
+    <button class="big b-orange" id="goNext">▶ つづきから</button>
+    <button class="big b-white" id="goLevels">🗺️ レベルを えらぶ</button>
+    <button class="big b-white" id="goRobots">🤖 ロボット ずかん</button>
+  </div>
+  <button class="parent" id="goParent">おうちのかたへ</button>
+</section>
+
+<!-- レベルえらび -->
+<section class="screen" id="levels">
+  <div class="bar"><button class="icon" data-home>🏠</button><h2>レベルを えらぶ</h2><div style="width:54px"></div></div>
+  <div class="grid" id="lvGrid"></div>
+</section>
+
+<!-- あそぶ -->
+<section class="screen" id="play">
+  <div class="bar">
+    <button class="icon" id="backLevels">◀</button>
+    <h2 id="lvTitle">レベル 1</h2>
+    <button class="icon" id="howBtn">？</button>
+  </div>
+  <div class="prog"><span id="progTxt">いきどまり 0 / 0</span><div class="track"><div class="fill" id="progFill"></div></div></div>
+  <div id="stage"><canvas id="cv"></canvas></div>
+  <div class="tools">
+    <button class="tool on" id="tFill">✏️ ぬりつぶす</button>
+    <button class="tool" id="tPath">🖍️ ゴールまで なぞる</button>
+    <button class="tool small" id="tUndo">↩️ もどす</button>
+    <button class="tool small" id="tClear">🧽 ぜんぶ けす</button>
+  </div>
+</section>
+
+<!-- ずかん -->
+<section class="screen" id="robots">
+  <div class="bar"><button class="icon" data-home>🏠</button><h2>ロボット ずかん</h2><div style="width:54px"></div></div>
+  <div class="robos" id="robos"></div>
+</section>
+
+<!-- ごほうび・あそびかた・おうちのかたへ -->
+<div class="modal" id="modal"><div class="card" id="modalCard"></div></div>
+
+<script>
+'use strict';
+// ============================================================
+// めいろロボ（2026-11-12）
+// ・迷路は番号ごとに同じ形で自動生成（どうぶつの形の中に作る）。LEVELS を増やせば問題も増える
+// ・ぬりつぶし: 通路にそってなぞった行き止まりを鉛筆の色で塗る（正しい道は塗れない）。全部塗るとクリア
+// ・なぞる: スタートからゴールまで通路にそってなぞってもクリア
+// ・10問クリアでロボットが1体完成（パーツは1問ごと）。進み具合はこの端末に保存
+// ============================================================
+var LEVELS = 100;           // 問題数（10の倍数にするとロボットの数がそろう）
+var STORE = 'meiro-robo-v1';
+
+// ---------- どうぶつの形（0〜100 の箱の中に、円・だ円・多角形・四角で描く） ----------
+var SHAPES = [
+  { name: 'ねこ', emoji: '🐱', color: '#fde68a', parts: [
+    { c: [50, 36, 22] }, { p: [[29, 26], [31, 3], [48, 17]] }, { p: [[52, 17], [69, 3], [71, 26]] },
+    { e: [50, 73, 27, 22, 0] }, { e: [84, 66, 7, 20, -25] } ] },
+  { name: 'いぬ', emoji: '🐶', color: '#fed7aa', parts: [
+    { c: [36, 34, 20] }, { e: [17, 36, 8, 16, 15] }, { e: [55, 36, 8, 16, -15] }, { e: [27, 50, 12, 9, 0] },
+    { e: [62, 66, 32, 17, 0] }, { r: [38, 72, 10, 22] }, { r: [78, 72, 10, 22] }, { e: [93, 52, 5, 12, 30] } ] },
+  { name: 'さかな', emoji: '🐟', color: '#bae6fd', parts: [
+    { e: [44, 52, 34, 24, 0] }, { p: [[70, 52], [98, 24], [98, 80]] }, { p: [[34, 30], [50, 12], [60, 32]] } ] },
+  { name: 'うさぎ', emoji: '🐰', color: '#fbcfe8', parts: [
+    { c: [50, 50, 18] }, { e: [40, 20, 7, 20, -8] }, { e: [60, 20, 7, 20, 8] }, { e: [50, 80, 27, 18, 0] } ] },
+  { name: 'くま', emoji: '🐻', color: '#d6c3a5', parts: [
+    { c: [50, 33, 21] }, { c: [31, 15, 9] }, { c: [69, 15, 9] }, { e: [50, 72, 28, 25, 0] } ] },
+  { name: 'ぞう', emoji: '🐘', color: '#d1d5db', parts: [
+    { e: [58, 52, 32, 24, 0] }, { c: [28, 40, 19] }, { e: [38, 38, 13, 18, 0] }, { p: [[10, 44], [22, 50], [18, 90], [6, 90]] },
+    { r: [40, 62, 12, 30] }, { r: [70, 62, 12, 30] } ] },
+  { name: 'ひよこ', emoji: '🐤', color: '#fef08a', parts: [
+    { c: [54, 62, 30] }, { c: [40, 30, 18] }, { p: [[24, 26], [8, 32], [24, 38]] }, { r: [42, 88, 6, 10] }, { r: [60, 88, 6, 10] } ] },
+  { name: 'かめ', emoji: '🐢', color: '#bbf7d0', parts: [
+    { e: [48, 52, 32, 24, 0] }, { c: [88, 48, 10] }, { e: [26, 74, 9, 7, 0] }, { e: [70, 74, 9, 7, 0] },
+    { e: [26, 30, 9, 7, 0] }, { e: [70, 30, 9, 7, 0] }, { p: [[16, 52], [4, 48], [16, 58]] } ] },
+  { name: 'くじら', emoji: '🐳', color: '#c7d2fe', parts: [
+    { e: [44, 58, 40, 24, 0] }, { p: [[76, 54], [98, 30], [92, 56], [98, 80]] } ] },
+  { name: 'きょうりゅう', emoji: '🦕', color: '#a7f3d0', parts: [
+    { e: [48, 62, 27, 18, 0] }, { p: [[58, 56], [70, 16], [82, 18], [74, 60]] }, { e: [83, 16, 11, 8, 0] },
+    { p: [[24, 58], [0, 76], [30, 72]] }, { r: [34, 70, 9, 22] }, { r: [56, 70, 9, 22] } ] }
+];
+
+// ---------- ロボット（10問で1体・パーツは1問ごと） ----------
+var ROBOTS = [
+  { name: 'アカロボ', body: '#ef4444', dark: '#b91c1c' }, { name: 'アオロボ', body: '#3b82f6', dark: '#1d4ed8' },
+  { name: 'ミドリロボ', body: '#22c55e', dark: '#15803d' }, { name: 'キイロロボ', body: '#eab308', dark: '#a16207' },
+  { name: 'ムラサキロボ', body: '#a855f7', dark: '#7e22ce' }, { name: 'オレンジロボ', body: '#f97316', dark: '#c2410c' },
+  { name: 'ピンクロボ', body: '#ec4899', dark: '#be185d' }, { name: 'ミズイロロボ', body: '#06b6d4', dark: '#0e7490' },
+  { name: 'ギンロボ', body: '#94a3b8', dark: '#475569' }, { name: 'キンロボ', body: '#f59e0b', dark: '#b45309' }
+];
+var PARTS = ['あし（ひだり）', 'あし（みぎ）', 'からだ', 'うで（ひだり）', 'うで（みぎ）', 'あたま', 'め', 'アンテナ', 'むねの ボタン', 'ロケット'];
+
+function robotSVG(ri, have, highlight) {
+  var R = ROBOTS[ri % ROBOTS.length], g = function (i) { return have > i; };
+  var ghost = 'fill="none" stroke="#cbd5e1" stroke-width="3" stroke-dasharray="6 5"';
+  var fill = function (c) { return 'fill="' + c + '" stroke="#1f2937" stroke-width="3"'; };
+  var hl = function (i) { return highlight === i ? ' class="glow"' : ''; };
+  var s = '';
+  // 0,1 あし
+  s += '<g' + hl(0) + '><rect x="72" y="150" width="20" height="34" rx="6" ' + (g(0) ? fill(R.dark) : ghost) + '/></g>';
+  s += '<g' + hl(1) + '><rect x="108" y="150" width="20" height="34" rx="6" ' + (g(1) ? fill(R.dark) : ghost) + '/></g>';
+  // 9 ロケット（あしの下のほのお）
+  s += '<g' + hl(9) + '>' + (g(9) ? '<path d="M74 186 l8 12 l8 -12 Z M110 186 l8 12 l8 -12 Z" fill="#fb923c" stroke="#c2410c" stroke-width="2"/>' : '<path d="M74 186 l8 12 l8 -12 Z M110 186 l8 12 l8 -12 Z" ' + ghost + '/>') + '</g>';
+  // 2 からだ
+  s += '<g' + hl(2) + '><rect x="60" y="92" width="80" height="62" rx="14" ' + (g(2) ? fill(R.body) : ghost) + '/></g>';
+  // 3,4 うで
+  s += '<g' + hl(3) + '><rect x="34" y="98" width="22" height="46" rx="10" ' + (g(3) ? fill(R.dark) : ghost) + '/>' + (g(3) ? '<circle cx="45" cy="148" r="8" fill="#e5e7eb" stroke="#1f2937" stroke-width="3"/>' : '') + '</g>';
+  s += '<g' + hl(4) + '><rect x="144" y="98" width="22" height="46" rx="10" ' + (g(4) ? fill(R.dark) : ghost) + '/>' + (g(4) ? '<circle cx="155" cy="148" r="8" fill="#e5e7eb" stroke="#1f2937" stroke-width="3"/>' : '') + '</g>';
+  // 8 むねのボタン
+  s += '<g' + hl(8) + '>' + (g(8) ? '<circle cx="86" cy="122" r="8" fill="#fde047" stroke="#1f2937" stroke-width="2.5"/><circle cx="114" cy="122" r="8" fill="#4ade80" stroke="#1f2937" stroke-width="2.5"/><rect x="90" y="136" width="20" height="6" rx="3" fill="#1f2937"/>' : '<circle cx="86" cy="122" r="8" ' + ghost + '/><circle cx="114" cy="122" r="8" ' + ghost + '/>') + '</g>';
+  // 5 あたま
+  s += '<g' + hl(5) + '><rect x="66" y="40" width="68" height="50" rx="14" ' + (g(5) ? fill(R.body) : ghost) + '/></g>';
+  // 6 め
+  s += '<g' + hl(6) + '>' + (g(6) ? '<circle cx="88" cy="62" r="9" fill="#fff" stroke="#1f2937" stroke-width="3"/><circle cx="112" cy="62" r="9" fill="#fff" stroke="#1f2937" stroke-width="3"/><circle cx="90" cy="63" r="4" fill="#1f2937"/><circle cx="114" cy="63" r="4" fill="#1f2937"/><path d="M90 78 q10 7 20 0" fill="none" stroke="#1f2937" stroke-width="3" stroke-linecap="round"/>' : '<circle cx="88" cy="62" r="9" ' + ghost + '/><circle cx="112" cy="62" r="9" ' + ghost + '/>') + '</g>';
+  // 7 アンテナ
+  s += '<g' + hl(7) + '>' + (g(7) ? '<line x1="100" y1="40" x2="100" y2="20" stroke="#1f2937" stroke-width="4"/><circle cx="100" cy="16" r="7" fill="#f43f5e" stroke="#1f2937" stroke-width="3"/>' : '<line x1="100" y1="40" x2="100" y2="22" ' + ghost + '/><circle cx="100" cy="16" r="7" ' + ghost + '/>') + '</g>';
+  return s;
+}
+
+// ---------- 迷路をつくる ----------
+function rng(seed) { var a = seed >>> 0; return function () { a = (a + 0x6D2B79F5) >>> 0; var t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+function inside(shape, x, y) {
+  return shape.parts.some(function (q) {
+    if (q.c) { var dx = x - q.c[0], dy = y - q.c[1]; return dx * dx + dy * dy <= q.c[2] * q.c[2]; }
+    if (q.e) { var a = -q.e[4] * Math.PI / 180, X = x - q.e[0], Y = y - q.e[1], u = X * Math.cos(a) - Y * Math.sin(a), v = X * Math.sin(a) + Y * Math.cos(a); return (u * u) / (q.e[2] * q.e[2]) + (v * v) / (q.e[3] * q.e[3]) <= 1; }
+    if (q.r) return x >= q.r[0] && x <= q.r[0] + q.r[2] && y >= q.r[1] && y <= q.r[1] + q.r[3];
+    if (q.p) { var pts = q.p, ins = false; for (var i = 0, j = pts.length - 1; i < pts.length; j = i++) { var xi = pts[i][0], yi = pts[i][1], xj = pts[j][0], yj = pts[j][1]; if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) ins = !ins; } return ins; }
+    return false;
+  });
+}
+var DIRS = [[0, -1, 1, 4], [1, 0, 2, 8], [0, 1, 4, 1], [-1, 0, 8, 2]]; // dx, dy, このマスの扉, となりの扉（上・右・下・左）
+function levelInfo(L) {
+  var shape = SHAPES[(L - 1) % SHAPES.length];
+  var n = 9 + Math.round((L - 1) * 0.22);            // レベル1: 9マス → レベル100: 31マス（はじめは一本道ぽくして、やさしく）
+  var bias = Math.max(0.35, 0.92 - (L - 1) * 0.006); // 長い一本道（やさしい）→ 枝分かれが多い（むずかしい）
+  return { shape: shape, n: n, bias: bias };
+}
+function makeMaze(L) {
+  var info = levelInfo(L), n = info.n, shape = info.shape, R = rng(L * 9973 + 17);
+  var ins = new Array(n * n).fill(false);
+  for (var y = 0; y < n; y++) for (var x = 0; x < n; x++) ins[y * n + x] = inside(shape, (x + 0.5) / n * 100, (y + 0.5) / n * 100);
+  // いちばん大きくつながったところだけ使う
+  var comp = new Array(n * n).fill(-1), best = -1, bestSize = 0, id = 0;
+  for (var i = 0; i < n * n; i++) {
+    if (!ins[i] || comp[i] >= 0) continue;
+    var q = [i], size = 0; comp[i] = id;
+    while (q.length) { var c = q.pop(); size++; var cx = c % n, cy = (c - cx) / n;
+      DIRS.forEach(function (d) { var nx = cx + d[0], ny = cy + d[1]; if (nx < 0 || ny < 0 || nx >= n || ny >= n) return; var k = ny * n + nx; if (ins[k] && comp[k] < 0) { comp[k] = id; q.push(k); } }); }
+    if (size > bestSize) { bestSize = size; best = id; } id++;
+  }
+  for (i = 0; i < n * n; i++) ins[i] = ins[i] && comp[i] === best;
+  // 迷路（成長する木。新しいマスを選ぶ割合 bias が高いほど一本道ぽい）
+  var open = new Array(n * n).fill(0), seen = new Array(n * n).fill(false), cells = [];
+  var first = ins.indexOf(true); seen[first] = true; cells.push(first);
+  while (cells.length) {
+    var idx = R() < info.bias ? cells.length - 1 : Math.floor(R() * cells.length), cur = cells[idx];
+    var ccx = cur % n, ccy = (cur - ccx) / n, opts = [];
+    DIRS.forEach(function (d) { var nx = ccx + d[0], ny = ccy + d[1]; if (nx < 0 || ny < 0 || nx >= n || ny >= n) return; var k = ny * n + nx; if (ins[k] && !seen[k]) opts.push([k, d]); });
+    if (!opts.length) { cells.splice(idx, 1); continue; }
+    var pick = opts[Math.floor(R() * opts.length)]; open[cur] |= pick[1][2]; open[pick[0]] |= pick[1][3]; seen[pick[0]] = true; cells.push(pick[0]);
+  }
+  // スタートとゴール: いちばん遠い2つのマス
+  function bfs(s) { var dist = new Array(n * n).fill(-1), par = new Array(n * n).fill(-1), q = [s], h = 0; dist[s] = 0;
+    while (h < q.length) { var c = q[h++], cx = c % n, cy = (c - cx) / n; DIRS.forEach(function (d) { if (!(open[c] & d[2])) return; var k = (cy + d[1]) * n + cx + d[0]; if (dist[k] < 0) { dist[k] = dist[c] + 1; par[k] = c; q.push(k); } }); }
+    var far = s; for (var j = 0; j < n * n; j++) if (dist[j] > dist[far]) far = j; return { far: far, par: par, dist: dist }; }
+  var a = bfs(first).far, b0 = bfs(a), b = b0.far;
+  // スタートは左寄り・上寄りにする（左から右へ進む方が分かりやすい）
+  var colA = a % n, colB = b % n; if (colB < colA) { var t = a; a = b; b = t; b0 = bfs(a); }
+  var sol = new Array(n * n).fill(false), path = [], c2 = b; while (c2 >= 0) { sol[c2] = true; path.push(c2); c2 = b0.par[c2]; } path.reverse();
+  var dead = 0; for (i = 0; i < n * n; i++) if (ins[i] && !sol[i]) dead++;
+  return { L: L, n: n, shape: shape, ins: ins, open: open, start: a, goal: b, sol: sol, path: path, dead: dead };
+}
+
+// ---------- 保存 ----------
+var save = (function () { try { return JSON.parse(localStorage.getItem(STORE)) || {}; } catch (e) { return {}; } })();
+save.cleared = save.cleared || {};
+function persist() { try { localStorage.setItem(STORE, JSON.stringify(save)); } catch (e) {} }
+function clearedCount() { return Object.keys(save.cleared).length; }
+function nextLevel() { for (var L = 1; L <= LEVELS; L++) if (!save.cleared[L]) return L; return LEVELS; }
+function unlocked(L) { return L === 1 || save.cleared[L] || save.cleared[L - 1]; }
+function robotHave(ri) { var n = 0; for (var k = 1; k <= 10; k++) if (save.cleared[ri * 10 + k]) n++; return n; }
+
+// ---------- 画面 ----------
+var $ = function (id) { return document.getElementById(id); };
+function show(id) { document.querySelectorAll('.screen').forEach(function (s) { s.classList.toggle('on', s.id === id); }); if (id === 'levels') renderLevels(); if (id === 'robots') renderRobots(); if (id === 'home') renderHome(); }
+document.querySelectorAll('[data-home]').forEach(function (b) { b.onclick = function () { show('home'); }; });
+$('goNext').onclick = function () { startLevel(nextLevel()); };
+$('goLevels').onclick = function () { show('levels'); };
+$('goRobots').onclick = function () { show('robots'); };
+$('backLevels').onclick = function () { show('levels'); };
+function renderHome() { var ri = Math.min(Math.floor((nextLevel() - 1) / 10), ROBOTS.length - 1); $('homeRobot').innerHTML = robotSVG(ri, robotHave(ri)); $('goNext').textContent = clearedCount() ? '▶ つづきから（レベル ' + nextLevel() + '）' : '▶ はじめる'; }
+function renderLevels() {
+  var h = '', nx = nextLevel();
+  for (var L = 1; L <= LEVELS; L++) {
+    if ((L - 1) % 10 === 0) { var ri = (L - 1) / 10; h += '<div class="sec"><svg viewBox="0 0 200 200">' + robotSVG(ri, robotHave(ri)) + '</svg>' + ROBOTS[ri % ROBOTS.length].name + '（' + robotHave(ri) + ' / 10）</div>'; }
+    var sh = levelInfo(L).shape, cls = save.cleared[L] ? 'done' : !unlocked(L) ? 'lock' : L === nx ? 'next' : '';
+    h += '<button class="lv ' + cls + '" data-l="' + L + '"><small>' + (save.cleared[L] ? '⭐' : unlocked(L) ? sh.emoji : '🔒') + '</small>' + L + '</button>';
+  }
+  $('lvGrid').innerHTML = h;
+  $('lvGrid').querySelectorAll('.lv').forEach(function (b) { b.onclick = function () { var L = +b.dataset.l; if (unlocked(L)) startLevel(L); }; });
+  var cur = $('lvGrid').querySelector('.next'); if (cur) cur.scrollIntoView({ block: 'center' });
+}
+function renderRobots() {
+  var h = '';
+  for (var ri = 0; ri < LEVELS / 10; ri++) { var have = robotHave(ri);
+    h += '<div class="rcard"><svg viewBox="0 0 200 200">' + robotSVG(ri, have) + '</svg><b>' + (have === 10 ? ROBOTS[ri % ROBOTS.length].name : '？？？') + '</b><span>レベル ' + (ri * 10 + 1) + '〜' + (ri * 10 + 10) + '　' + (have === 10 ? 'かんせい！' : have + ' / 10') + '</span></div>'; }
+  $('robos').innerHTML = h;
+}
+function modal(html) { $('modalCard').innerHTML = html; $('modal').classList.add('on'); }
+function closeModal() { $('modal').classList.remove('on'); }
+$('howBtn').onclick = function () {
+  modal('<h3>あそびかた</h3><p class="note">✏️ <b>ぬりつぶす</b>：いきどまりの みちを ゆびで なぞって、えんぴつで ぬりつぶそう。ゴールへの みちは ぬれないよ。<br>ぜんぶ ぬれたら、しろい 1ぽんみちが のこって クリア！<br><br>🖍️ <b>ゴールまで なぞる</b>：🟢スタートから ⭐ゴールまで なぞっても クリアだよ。<br><br>あわてなくて だいじょうぶ。1ぽんずつ ぬっていけば、かならず ゴールに つくよ。</p><div class="btns"><button class="big b-orange" id="mOk">わかった！</button></div>');
+  $('mOk').onclick = closeModal;
+};
+$('goParent').onclick = function () {
+  modal('<h3>おうちのかたへ</h3><p class="note">このめいろは「消去法」で解くための迷路です。行き止まりの道を1本ずつ鉛筆で塗りつぶしていくと、最後にゴールへの白い1本道が浮かび上がります。<br><br>やみくもに進むとゴールにたどり着けなくても、<b>1歩ずつ確実に前に進めば、クリアできない壁はない</b>――それを遊びの中で感じてもらえたらうれしいです。<br><br>・指でなぞると通路にそって塗れます（壁を越えてはみ出しません）<br>・正しい道の上は、なぞっても色がつきません<br>・スタートからゴールまでなぞってもクリアできます<br>・10問ごとにロボットが1体完成します<br>・進み具合はこの端末に保存されます</p><div class="btns"><button class="big b-white" id="mReset" style="font-size:16px;padding:10px 16px">記録をリセット</button><button class="big b-orange" id="mOk">とじる</button></div>');
+  $('mOk').onclick = closeModal;
+  $('mReset').onclick = function () { if (confirm('ぜんぶの記録（クリアしたレベル・ロボット）を消しますか？')) { save = { cleared: {} }; persist(); closeModal(); renderHome(); } };
+};
+
+// ---------- あそぶ ----------
+var G = null, mode = 'fill', cv = $('cv'), ctx = cv.getContext('2d'), geo = null;
+function startLevel(L) {
+  var m = makeMaze(L);
+  G = { m: m, filled: new Array(m.n * m.n).fill(false), route: [m.start], strokes: [], done: !!save.cleared[L] && false, cleared: false };
+  $('lvTitle').textContent = 'レベル ' + L + '　' + m.shape.emoji + ' ' + m.shape.name;
+  setMode('fill'); show('play'); requestAnimationFrame(layout);
+  if (L === 1 && !save.seenHow) { save.seenHow = 1; persist(); $('howBtn').onclick(); }
+}
+function setMode(md) { mode = md; $('tFill').classList.toggle('on', md === 'fill'); $('tPath').classList.toggle('on', md === 'path'); }
+$('tFill').onclick = function () { setMode('fill'); };
+$('tPath').onclick = function () { setMode('path'); };
+$('tUndo').onclick = function () { if (!G || G.cleared) return; var s = G.strokes.pop(); if (!s) return; if (s.type === 'fill') s.cells.forEach(function (c) { G.filled[c] = false; }); else G.route = s.prev; draw(); };
+$('tClear').onclick = function () { if (!G || G.cleared) return; G.strokes.push({ type: 'all', prev: G.route }); G.filled.fill(false); G.route = [G.m.start]; G.strokes = []; draw(); };
+function layout() {
+  if (!G) return;
+  var st = $('stage'), W = Math.max(120, st.clientWidth - 16), H = Math.max(120, st.clientHeight - 8), dpr = window.devicePixelRatio || 1;
+  // 迷路のあるところ（マスの外枠）だけを画面いっぱいに大きく出す
+  var m = G.m, n = m.n, x0 = n, y0 = n, x1 = 0, y1 = 0;
+  for (var i = 0; i < n * n; i++) if (m.ins[i]) { var x = i % n, y = (i - x) / n; x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
+  var mg = 0.6, bw = x1 - x0 + 1 + mg * 2, bh = y1 - y0 + 1 + mg * 2, pad = 8;
+  var cs = Math.min((W - pad * 2) / bw, (H - pad * 2) / bh), cw = bw * cs + pad * 2, ch = bh * cs + pad * 2;
+  cv.style.width = cw + 'px'; cv.style.height = ch + 'px'; cv.width = Math.round(cw * dpr); cv.height = Math.round(ch * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  geo = { w: cw, h: ch, cs: cs, ox: pad + (mg - x0) * cs, oy: pad + (mg - y0) * cs };
+  draw();
+}
+window.addEventListener('resize', function () { if ($('play').classList.contains('on')) layout(); });
+function cellRect(i) { var n = G.m.n, x = i % n, y = (i - x) / n; return [geo.ox + x * geo.cs, geo.oy + y * geo.cs]; }
+function draw() {
+  if (!G || !geo) return;
+  var m = G.m, n = m.n, cs = geo.cs;
+  ctx.clearRect(0, 0, geo.w, geo.h);
+  // どうぶつの形（うすい色）
+  ctx.save(); ctx.translate(geo.ox, geo.oy); ctx.scale(n * cs / 100, n * cs / 100); ctx.fillStyle = m.shape.color;
+  m.shape.parts.forEach(function (q) { ctx.beginPath();
+    if (q.c) ctx.arc(q.c[0], q.c[1], q.c[2], 0, Math.PI * 2);
+    if (q.e) ctx.ellipse(q.e[0], q.e[1], q.e[2], q.e[3], q.e[4] * Math.PI / 180, 0, Math.PI * 2);
+    if (q.r) ctx.rect(q.r[0], q.r[1], q.r[2], q.r[3]);
+    if (q.p) { ctx.moveTo(q.p[0][0], q.p[0][1]); q.p.slice(1).forEach(function (p) { ctx.lineTo(p[0], p[1]); }); ctx.closePath(); }
+    ctx.fill(); });
+  ctx.restore();
+  // 迷路の床（白）
+  ctx.fillStyle = '#fff';
+  for (var i = 0; i < n * n; i++) if (m.ins[i]) { var r = cellRect(i); ctx.fillRect(r[0] - 0.5, r[1] - 0.5, cs + 1, cs + 1); }
+  // ぬりつぶし（えんぴつ色）。となりもぬってあって通路がつながっていれば、すきまなくつなぐ
+  var wall = Math.max(2, cs * 0.12), inset = wall * 0.5 + 1; // かべのすぐそばまで塗る（白いすきまが道に見えないように）
+  ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--pencil');
+  for (i = 0; i < n * n; i++) if (G.filled[i]) { var rr = cellRect(i), x0 = rr[0] + inset, y0 = rr[1] + inset, w = cs - inset * 2;
+    ctx.fillRect(x0, y0, w, w);
+    if (G.filled[i + 1] && (m.open[i] & 2)) ctx.fillRect(x0 + w - 1, y0, inset * 2 + 2, w);
+    if (G.filled[i + n] && (m.open[i] & 4)) ctx.fillRect(x0, y0 + w - 1, w, inset * 2 + 2);
+    // 正しい道とのつなぎ目は少しのばす（通路の入口まで）
+    DIRS.forEach(function (d) { if (!(m.open[i] & d[2])) return; var k = i + d[1] * n + d[0]; if (!m.sol[k]) return;
+      if (d[0] === 1) ctx.fillRect(x0 + w - 1, y0, inset + 1, w); if (d[0] === -1) ctx.fillRect(x0 - inset, y0, inset + 1, w);
+      if (d[1] === 1) ctx.fillRect(x0, y0 + w - 1, w, inset + 1); if (d[1] === -1) ctx.fillRect(x0, y0 - inset, w, inset + 1); });
+  }
+  // なぞった道 / クリアしたら正解の道
+  var route = G.cleared ? m.path : G.route;
+  if (route.length > 1 || G.cleared) { ctx.strokeStyle = G.cleared ? '#f59e0b' : '#f97316'; ctx.lineWidth = Math.max(4, cs * 0.32); ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.globalAlpha = G.cleared ? 0.9 : 0.85; ctx.beginPath();
+    route.forEach(function (c, k) { var r2 = cellRect(c); if (k) ctx.lineTo(r2[0] + cs / 2, r2[1] + cs / 2); else ctx.moveTo(r2[0] + cs / 2, r2[1] + cs / 2); }); ctx.stroke(); ctx.globalAlpha = 1; }
+  // かべ
+  ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--wall'); ctx.lineWidth = wall; ctx.lineCap = 'round'; ctx.beginPath();
+  for (i = 0; i < n * n; i++) { if (!m.ins[i]) continue; var r3 = cellRect(i), X = r3[0], Y = r3[1], cx = i % n, cy = (i - cx) / n;
+    if (!(m.open[i] & 1)) { ctx.moveTo(X, Y); ctx.lineTo(X + cs, Y); }
+    if (!(m.open[i] & 8)) { ctx.moveTo(X, Y); ctx.lineTo(X, Y + cs); }
+    if (!(m.open[i] & 2) && !(cx + 1 < n && m.ins[i + 1])) { ctx.moveTo(X + cs, Y); ctx.lineTo(X + cs, Y + cs); }
+    if (!(m.open[i] & 4) && !(cy + 1 < n && m.ins[i + n])) { ctx.moveTo(X, Y + cs); ctx.lineTo(X + cs, Y + cs); }
+  }
+  ctx.stroke();
+  // スタート・ゴール
+  var s = cellRect(m.start), g = cellRect(m.goal);
+  ctx.fillStyle = '#22c55e'; ctx.beginPath(); ctx.arc(s[0] + cs / 2, s[1] + cs / 2, cs * 0.3, 0, Math.PI * 2); ctx.fill();
+  ctx.font = Math.round(cs * 0.72) + 'px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('⭐', g[0] + cs / 2, g[1] + cs / 2 + cs * 0.04);
+  // 進みぐあい
+  var f = 0; for (i = 0; i < n * n; i++) if (G.filled[i]) f++;
+  $('progTxt').textContent = 'いきどまり ' + f + ' / ' + m.dead; $('progFill').style.width = (m.dead ? f / m.dead * 100 : 0) + '%';
+}
+// ゆびの位置 → マス
+function cellAt(px, py) { var x = Math.floor((px - geo.ox) / geo.cs), y = Math.floor((py - geo.oy) / geo.cs), n = G.m.n; if (x < 0 || y < 0 || x >= n || y >= n) return -1; var i = y * n + x; return G.m.ins[i] ? i : -1; }
+function linked(a, b) { var n = G.m.n; if (b === a + 1) return G.m.open[a] & 2; if (b === a - 1) return G.m.open[a] & 8; if (b === a + n) return G.m.open[a] & 4; if (b === a - n) return G.m.open[a] & 1; return 0; }
+var touch = null;
+function pos(e) { var r = cv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; }
+cv.addEventListener('pointerdown', function (e) {
+  if (!G || G.cleared) return; e.preventDefault(); cv.setPointerCapture(e.pointerId);
+  var p = pos(e), c = cellAt(p[0], p[1]); if (c < 0) return;
+  if (mode === 'fill') { touch = { last: c, p: p, stroke: { type: 'fill', cells: [] } }; paint(c); }
+  else { // なぞる: 道のどこからでも続きをなぞれる（スタートか、いまの道の上から）
+    var at = G.route.indexOf(c); if (at < 0) return; touch = { last: c, p: p, stroke: { type: 'path', prev: G.route.slice() } }; G.route = G.route.slice(0, at + 1); }
+  draw();
+});
+cv.addEventListener('pointermove', function (e) {
+  if (!touch) return; e.preventDefault();
+  var p = pos(e), dx = p[0] - touch.p[0], dy = p[1] - touch.p[1], dist = Math.hypot(dx, dy), steps = Math.max(1, Math.ceil(dist / (geo.cs / 3)));
+  var from = touch.p;
+  for (var k = 1; k <= steps && touch; k++) step(from[0] + dx * k / steps, from[1] + dy * k / steps); // ゴールに着いたら touch は空になる
+  if (touch) touch.p = p; draw();
+});
+function step(px, py) {
+  var c = cellAt(px, py); if (c < 0 || c === touch.last || !linked(touch.last, c)) return; // かべの向こうへは行かない（通路にそって進む）
+  if (mode === 'fill') { touch.last = c; paint(c); }
+  else { var r = G.route; if (r.length > 1 && r[r.length - 2] === c) r.pop(); else if (r.indexOf(c) < 0) r.push(c); else return; touch.last = c;
+    if (c === G.m.goal) { finishTouch(); win(); } }
+}
+function paint(c) { if (G.m.sol[c] || G.filled[c]) return; G.filled[c] = true; touch.stroke.cells.push(c); }
+function finishTouch() { if (!touch) return; var s = touch.stroke; touch = null; if (s.type === 'fill' && !s.cells.length) return; G.strokes.push(s); }
+['pointerup', 'pointercancel', 'lostpointercapture'].forEach(function (ev) { cv.addEventListener(ev, function () {
+  if (!touch) return; finishTouch(); draw();
+  var f = G.filled.filter(Boolean).length; if (!G.cleared && f >= G.m.dead) win();
+}); });
+
+// ---------- クリア ----------
+function win() {
+  if (G.cleared) return; G.cleared = true; draw();
+  var L = G.m.L, first = !save.cleared[L]; save.cleared[L] = 1; persist();
+  var ri = Math.floor((L - 1) / 10), pi = (L - 1) % 10, have = robotHave(ri), done = have === 10;
+  confetti(done ? 60 : 24);
+  setTimeout(function () {
+    var title = done ? ROBOTS[ri % ROBOTS.length].name + ' かんせい！' : 'クリア！';
+    var msg = first ? (done ? 'ロボットが 1たい できあがったよ！<br>すごい！' : 'ロボットの <b>' + PARTS[pi] + '</b> を ゲット！<br>あと ' + (10 - have) + 'こで かんせい！') : 'もういちど クリア！';
+    modal('<h3 class="pop">' + title + '</h3><svg class="robo pop" viewBox="0 0 200 200">' + robotSVG(ri, have, first ? pi : -1) + '</svg><p>' + msg + '</p><div class="btns">' +
+      '<button class="big b-white" id="mList">レベル いちらん</button>' + (L < LEVELS ? '<button class="big b-orange" id="mNext">つぎの もんだい ▶</button>' : '<button class="big b-orange" id="mList2">おしまい！</button>') + '</div>');
+    $('mList').onclick = function () { closeModal(); show('levels'); };
+    if ($('mNext')) $('mNext').onclick = function () { closeModal(); startLevel(L + 1); };
+    if ($('mList2')) $('mList2').onclick = function () { closeModal(); show('robots'); };
+  }, 900);
+}
+function confetti(k) { var em = ['🎉', '⭐', '✨', '🔩', '⚙️', '🤖']; for (var i = 0; i < k; i++) { var d = document.createElement('div'); d.className = 'confetti'; d.textContent = em[i % em.length]; d.style.left = Math.random() * 100 + 'vw'; d.style.animationDuration = (1.6 + Math.random() * 1.6) + 's'; d.style.animationDelay = (Math.random() * 0.5) + 's'; document.body.appendChild(d); setTimeout(function (x) { x.remove(); }.bind(null, d), 4000); } }
+
+window.MEIRO = { makeMaze: makeMaze, LEVELS: LEVELS, levelInfo: levelInfo }; // 確認用
+renderHome();
+</script>
+</body>
+</html>
