@@ -128,41 +128,103 @@
 'use strict';
 // ============================================================
 // めいろロボ（2026-11-12）
-// ・迷路は番号ごとに同じ形で自動生成（どうぶつの形の中に作る）。LEVELS を増やせば問題も増える
+// ・20種類のキャラクターのイラストの「からだ」の中に迷路。20問ごとにむずかしさが1段上がる（★1〜★10・200問）。迷路は番号ごとに同じものを自動生成
 // ・ぬりつぶし: 通路にそってなぞった行き止まりを鉛筆の色で塗る（正しい道は塗れない）。全部塗るとクリア
 // ・なぞる: スタートからゴールまで通路にそってなぞってもクリア
 // ・10問クリアでロボットが1体完成（パーツは1問ごと）。進み具合はこの端末に保存
 // ============================================================
-var LEVELS = 100;           // 問題数（10の倍数にするとロボットの数がそろう）
+var LEVELS = 200;           // 問題数（20キャラ × むずかしさ10段階）。10の倍数にするとロボットの数がそろう
 var STORE = 'meiro-robo-v1';
 
-// ---------- どうぶつの形（0〜100 の箱の中に、円・だ円・多角形・四角で描く） ----------
-var SHAPES = [
-  { name: 'ねこ', emoji: '🐱', color: '#fde68a', parts: [
-    { c: [50, 36, 22] }, { p: [[29, 26], [31, 3], [48, 17]] }, { p: [[52, 17], [69, 3], [71, 26]] },
-    { e: [50, 73, 27, 22, 0] }, { e: [84, 66, 7, 20, -25] } ] },
-  { name: 'いぬ', emoji: '🐶', color: '#fed7aa', parts: [
-    { c: [36, 34, 20] }, { e: [17, 36, 8, 16, 15] }, { e: [55, 36, 8, 16, -15] }, { e: [27, 50, 12, 9, 0] },
-    { e: [62, 66, 32, 17, 0] }, { r: [38, 72, 10, 22] }, { r: [78, 72, 10, 22] }, { e: [93, 52, 5, 12, 30] } ] },
-  { name: 'さかな', emoji: '🐟', color: '#bae6fd', parts: [
-    { e: [44, 52, 34, 24, 0] }, { p: [[70, 52], [98, 24], [98, 80]] }, { p: [[34, 30], [50, 12], [60, 32]] } ] },
-  { name: 'うさぎ', emoji: '🐰', color: '#fbcfe8', parts: [
-    { c: [50, 50, 18] }, { e: [40, 20, 7, 20, -8] }, { e: [60, 20, 7, 20, 8] }, { e: [50, 80, 27, 18, 0] } ] },
-  { name: 'くま', emoji: '🐻', color: '#d6c3a5', parts: [
-    { c: [50, 33, 21] }, { c: [31, 15, 9] }, { c: [69, 15, 9] }, { e: [50, 72, 28, 25, 0] } ] },
-  { name: 'ぞう', emoji: '🐘', color: '#d1d5db', parts: [
-    { e: [58, 52, 32, 24, 0] }, { c: [28, 40, 19] }, { e: [38, 38, 13, 18, 0] }, { p: [[10, 44], [22, 50], [18, 90], [6, 90]] },
-    { r: [40, 62, 12, 30] }, { r: [70, 62, 12, 30] } ] },
-  { name: 'ひよこ', emoji: '🐤', color: '#fef08a', parts: [
-    { c: [54, 62, 30] }, { c: [40, 30, 18] }, { p: [[24, 26], [8, 32], [24, 38]] }, { r: [42, 88, 6, 10] }, { r: [60, 88, 6, 10] } ] },
-  { name: 'かめ', emoji: '🐢', color: '#bbf7d0', parts: [
-    { e: [48, 52, 32, 24, 0] }, { c: [88, 48, 10] }, { e: [26, 74, 9, 7, 0] }, { e: [70, 74, 9, 7, 0] },
-    { e: [26, 30, 9, 7, 0] }, { e: [70, 30, 9, 7, 0] }, { p: [[16, 52], [4, 48], [16, 58]] } ] },
-  { name: 'くじら', emoji: '🐳', color: '#c7d2fe', parts: [
-    { e: [44, 58, 40, 24, 0] }, { p: [[76, 54], [98, 30], [92, 56], [98, 80]] } ] },
-  { name: 'きょうりゅう', emoji: '🦕', color: '#a7f3d0', parts: [
-    { e: [48, 62, 27, 18, 0] }, { p: [[58, 56], [70, 16], [82, 18], [74, 60]] }, { e: [83, 16, 11, 8, 0] },
-    { p: [[24, 58], [0, 76], [30, 72]] }, { r: [34, 70, 9, 22] }, { r: [56, 70, 9, 22] } ] }
+// ---------- キャラクター（0〜100 の箱の中に描く） ----------
+// back = うしろの飾り（耳・しっぽ・足）／ body = 迷路が入る「からだ」／ front = 顔など（迷路は入れない）／ face = 目・口・ほっぺ
+// 形: c=[x,y,r] 円, e=[x,y,rx,ry,回転] だ円, p=[[x,y]..] 多角形, r=[x,y,w,h] 四角。f = 色（b からだ / l 明るい色 / d こい色 / #色）。s:0 = 線を描かない
+var HEAD = { c: [50, 28, 21], f: 'b' }, BODY = { e: [50, 70, 37, 27, 0], f: 'b' };
+var CHARS = [
+  { name: 'ねこ', emoji: '🐱', pal: { b: '#fdba74', l: '#ffedd5', d: '#c2410c' },
+    back: [{ p: [[31, 22], [31, 1], [47, 12]], f: 'b' }, { p: [[53, 12], [69, 1], [69, 22]], f: 'b' }, { p: [[34, 17], [34, 7], [43, 12]], f: 'l', s: 0 }, { p: [[57, 12], [66, 7], [66, 17]], f: 'l', s: 0 }, { e: [88, 62, 6, 17, -25], f: 'b' }],
+    body: [BODY], front: [HEAD],
+    face: [{ eye: [42, 27, 3.2] }, { eye: [58, 27, 3.2] }, { ov: [50, 32, 2.2, 1.6, 'd'] }, { catm: [50, 34.5, 3.5] }, { blush: [35, 33, 4] }, { blush: [65, 33, 4] }, { line: [29, 30, 39, 31.5] }, { line: [29, 35, 39, 34] }, { line: [71, 30, 61, 31.5] }, { line: [71, 35, 61, 34] }] },
+  { name: 'いぬ', emoji: '🐶', pal: { b: '#e8c39e', l: '#fff7ed', d: '#7c4a1e' },
+    back: [{ e: [89, 58, 5, 13, 35], f: 'b' }], body: [BODY],
+    front: [HEAD, { e: [30, 27, 7, 15, 20], f: 'd' }, { e: [70, 27, 7, 15, -20], f: 'd' }],
+    face: [{ eye: [43, 25, 3.2] }, { eye: [57, 25, 3.2] }, { ov: [50, 34.5, 8, 6, 'l'] }, { ov: [50, 31.5, 3, 2.2, '#1f2937'] }, { smile: [50, 36, 3] }, { blush: [37, 33, 3.5] }, { blush: [63, 33, 3.5] }] },
+  { name: 'うさぎ', emoji: '🐰', pal: { b: '#f5f5f4', l: '#fbcfe8', d: '#f472b6' },
+    back: [{ e: [41, 9, 7, 19, -8], f: 'b' }, { e: [59, 9, 7, 19, 8], f: 'b' }, { e: [41, 9, 3.5, 14, -8], f: 'l', s: 0 }, { e: [59, 9, 3.5, 14, 8], f: 'l', s: 0 }],
+    body: [BODY], front: [{ c: [50, 30, 20], f: 'b' }],
+    face: [{ eye: [42, 29, 3.2] }, { eye: [58, 29, 3.2] }, { ov: [50, 34, 2, 1.5, 'd'] }, { catm: [50, 36.5, 3] }, { blush: [36, 35, 4] }, { blush: [64, 35, 4] }] },
+  { name: 'くま', emoji: '🐻', pal: { b: '#c8915e', l: '#f3dcc0', d: '#5b3a1e' },
+    back: [{ c: [32, 12, 8], f: 'b' }, { c: [68, 12, 8], f: 'b' }, { c: [32, 12, 4], f: 'l', s: 0 }, { c: [68, 12, 4], f: 'l', s: 0 }],
+    body: [BODY], front: [HEAD],
+    face: [{ eye: [42, 25, 3.2] }, { eye: [58, 25, 3.2] }, { ov: [50, 34, 9, 7, 'l'] }, { ov: [50, 31.5, 3, 2.2, 'd'] }, { smile: [50, 36, 3] }, { blush: [35, 32, 3.5] }, { blush: [65, 32, 3.5] }] },
+  { name: 'パンダ', emoji: '🐼', pal: { b: '#f8fafc', l: '#e5e7eb', d: '#1f2937' },
+    back: [{ c: [32, 12, 8], f: 'd' }, { c: [68, 12, 8], f: 'd' }, { e: [16, 70, 8, 14, 20], f: 'd' }, { e: [84, 70, 8, 14, -20], f: 'd' }],
+    body: [BODY], front: [HEAD],
+    face: [{ ov: [41, 27, 5, 6.5, 'd', -20] }, { ov: [59, 27, 5, 6.5, 'd', 20] }, { ov: [42, 26, 1.8, 1.8, '#fff'] }, { ov: [58, 26, 1.8, 1.8, '#fff'] }, { ov: [50, 33, 2.6, 1.8, 'd'] }, { smile: [50, 35.5, 3] }, { blush: [34, 34, 3.5] }, { blush: [66, 34, 3.5] }] },
+  { name: 'ぶた', emoji: '🐷', pal: { b: '#f9a8d4', l: '#fbcfe8', d: '#be185d' },
+    back: [{ p: [[33, 16], [30, 2], [45, 10]], f: 'b' }, { p: [[55, 10], [70, 2], [67, 16]], f: 'b' }, { e: [90, 62, 3, 8, 30], f: 'b' }],
+    body: [BODY], front: [HEAD],
+    face: [{ eye: [42, 24, 3] }, { eye: [58, 24, 3] }, { ov: [50, 33, 7, 5, 'l', 0, 1] }, { ov: [47.5, 33, 1.3, 1.9, 'd'] }, { ov: [52.5, 33, 1.3, 1.9, 'd'] }, { blush: [35, 32, 3.5] }, { blush: [65, 32, 3.5] }] },
+  { name: 'ひよこ', emoji: '🐤', pal: { b: '#fde047', l: '#fef9c3', d: '#f97316' },
+    back: [{ p: [[46, 10], [49, 2], [51, 9], [55, 3], [55, 11]], f: 'b' }, { e: [14, 66, 8, 13, 25], f: 'b' }, { e: [86, 66, 8, 13, -25], f: 'b' }, { p: [[38, 94], [34, 100], [46, 100]], f: 'd' }, { p: [[62, 94], [54, 100], [66, 100]], f: 'd' }],
+    body: [BODY], front: [{ c: [50, 29, 20], f: 'b' }],
+    face: [{ eye: [43, 27, 3.2] }, { eye: [57, 27, 3.2] }, { poly: [[[45, 32], [55, 32], [50, 37.5]], 'd'] }, { blush: [36, 33, 3.5] }, { blush: [64, 33, 3.5] }] },
+  { name: 'ペンギン', emoji: '🐧', pal: { b: '#334155', l: '#ffffff', d: '#f97316' },
+    back: [{ e: [50, 66, 38, 32, 0], f: 'b' }, { e: [12, 64, 6, 16, 20], f: 'b' }, { e: [88, 64, 6, 16, -20], f: 'b' }, { e: [38, 97, 8, 3, 0], f: 'd' }, { e: [62, 97, 8, 3, 0], f: 'd' }],
+    body: [{ e: [50, 72, 27, 22, 0], f: 'l' }], front: [HEAD],
+    face: [{ ov: [50, 31, 14, 11, '#fff'] }, { eye: [44, 29, 2.8] }, { eye: [56, 29, 2.8] }, { poly: [[[46, 33], [54, 33], [50, 37]], 'd'] }, { blush: [39, 35, 3] }, { blush: [61, 35, 3] }] },
+  { name: 'かえる', emoji: '🐸', pal: { b: '#86efac', l: '#dcfce7', d: '#15803d' },
+    back: [{ c: [35, 13, 10], f: 'b' }, { c: [65, 13, 10], f: 'b' }, { e: [15, 88, 11, 6, 30], f: 'b' }, { e: [85, 88, 11, 6, -30], f: 'b' }],
+    body: [{ e: [50, 70, 36, 25, 0], f: 'b' }], front: [{ e: [50, 30, 27, 18, 0], f: 'b' }],
+    face: [{ ov: [35, 13, 6, 6, '#fff'] }, { ov: [65, 13, 6, 6, '#fff'] }, { eye: [35, 13.5, 3.2] }, { eye: [65, 13.5, 3.2] }, { smile: [50, 33, 9] }, { blush: [31, 32, 4] }, { blush: [69, 32, 4] }] },
+  { name: 'さかな', emoji: '🐟', pal: { b: '#7dd3fc', l: '#e0f2fe', d: '#0369a1' },
+    back: [{ p: [[80, 52], [99, 30], [99, 74]], f: 'b' }, { p: [[44, 32], [58, 16], [68, 32]], f: 'b' }, { p: [[52, 72], [62, 86], [68, 72]], f: 'b' }],
+    body: [{ e: [56, 52, 30, 24, 0], f: 'b' }], front: [{ e: [23, 52, 18, 21, 0], f: 'b' }],
+    face: [{ eye: [19, 45, 3.4] }, { smile: [15, 57, 3] }, { blush: [27, 58, 3] }] },
+  { name: 'くじら', emoji: '🐳', pal: { b: '#93c5fd', l: '#dbeafe', d: '#1d4ed8' },
+    back: [{ p: [[84, 56], [99, 38], [95, 58], [99, 80]], f: 'b' }, { p: [[23, 33], [26, 16], [29, 33]], f: '#bae6fd' }, { c: [20, 14, 3], f: '#bae6fd' }, { c: [27, 10, 3.5], f: '#bae6fd' }, { c: [34, 14, 3], f: '#bae6fd' }],
+    body: [{ e: [58, 58, 34, 26, 0], f: 'b' }], front: [{ e: [24, 58, 20, 24, 0], f: 'b' }],
+    face: [{ eye: [20, 52, 3.2] }, { smile: [16, 64, 4] }, { blush: [29, 64, 3.5] }] },
+  { name: 'かめ', emoji: '🐢', pal: { b: '#84cc16', l: '#bbf7d0', d: '#3f6212' },
+    back: [{ e: [24, 80, 9, 7, 0], f: 'l' }, { e: [72, 80, 9, 7, 0], f: 'l' }, { e: [26, 34, 8, 6, 0], f: 'l' }, { e: [70, 34, 8, 6, 0], f: 'l' }, { p: [[14, 58], [4, 54], [14, 64]], f: 'l' }],
+    body: [{ e: [48, 57, 34, 26, 0], f: 'b' }], front: [{ c: [87, 52, 11], f: 'l' }],
+    face: [{ eye: [90, 49, 2.6] }, { smile: [90, 56, 2.5] }, { blush: [84, 56, 2.5] }] },
+  { name: 'ぞう', emoji: '🐘', pal: { b: '#cbd5e1', l: '#e2e8f0', d: '#94a3b8' },
+    back: [{ r: [38, 78, 12, 20], f: 'b' }, { r: [66, 78, 12, 20], f: 'b' }, { p: [[90, 60], [98, 74], [94, 75]], f: 'b' }],
+    body: [{ e: [58, 62, 34, 25, 0], f: 'b' }],
+    front: [{ e: [44, 36, 13, 17, 0], f: 'l' }, { c: [30, 36, 19], f: 'b' }, { p: [[14, 40], [24, 44], [17, 72], [11, 82], [5, 78], [11, 70]], f: 'b' }],
+    face: [{ eye: [26, 32, 3] }, { blush: [35, 41, 3.5] }, { smile: [27, 44, 2.5] }] },
+  { name: 'きりん', emoji: '🦒', pal: { b: '#fcd34d', l: '#fef3c7', d: '#b45309' },
+    back: [{ r: [40, 80, 8, 18], f: 'b' }, { r: [64, 80, 8, 18], f: 'b' }, { r: [22, 0, 2.5, 8], f: 'd' }, { r: [32, 0, 2.5, 8], f: 'd' }, { p: [[84, 66], [96, 76], [93, 78]], f: 'b' }],
+    body: [{ e: [57, 66, 32, 21, 0], f: 'b' }],
+    front: [{ p: [[38, 66], [26, 18], [38, 16], [50, 62]], f: 'b' }, { e: [30, 16, 13, 10, 0], f: 'b' }],
+    face: [{ ov: [36, 42, 3, 4, 'd'] }, { ov: [33, 30, 2.5, 3, 'd'] }, { ov: [42, 54, 3, 3.5, 'd'] }, { eye: [26, 13, 2.6] }, { smile: [22, 19, 2.5] }, { blush: [33, 19, 3] }] },
+  { name: 'ライオン', emoji: '🦁', pal: { b: '#fbbf24', l: '#fef3c7', d: '#c2410c' },
+    back: [{ c: [50, 28, 28], f: 'd' }, { p: [[86, 62], [96, 50], [98, 54]], f: 'b' }, { c: [96, 49, 4], f: 'd' }],
+    body: [BODY], front: [{ c: [50, 29, 19], f: 'b' }],
+    face: [{ eye: [43, 26, 3] }, { eye: [57, 26, 3] }, { ov: [50, 35, 8, 6, 'l'] }, { ov: [50, 32, 2.8, 2, '#7c2d12'] }, { smile: [50, 37, 3] }, { blush: [37, 33, 3.5] }, { blush: [63, 33, 3.5] }] },
+  { name: 'きょうりゅう', emoji: '🦕', pal: { b: '#4ade80', l: '#bbf7d0', d: '#15803d' },
+    back: [{ p: [[28, 68], [2, 86], [34, 80]], f: 'b' }, { p: [[36, 50], [40, 42], [44, 50]], f: 'd' }, { p: [[46, 48], [50, 40], [54, 48]], f: 'd' }, { r: [36, 80, 9, 16], f: 'b' }, { r: [58, 80, 9, 16], f: 'b' }],
+    body: [{ e: [50, 68, 30, 20, 0], f: 'b' }],
+    front: [{ p: [[58, 62], [66, 22], [78, 22], [74, 66]], f: 'b' }, { e: [77, 19, 14, 10, 0], f: 'b' }],
+    face: [{ eye: [81, 16, 2.6] }, { smile: [86, 22, 3] }, { blush: [76, 23, 3] }] },
+  { name: 'たこ', emoji: '🐙', pal: { b: '#fca5a5', l: '#fee2e2', d: '#dc2626' },
+    back: [{ e: [22, 84, 6, 14, 30], f: 'b' }, { e: [38, 89, 6, 12, 10], f: 'b' }, { e: [62, 89, 6, 12, -10], f: 'b' }, { e: [78, 84, 6, 14, -30], f: 'b' }],
+    body: [{ e: [50, 40, 36, 32, 0], f: 'b' }], front: [{ e: [50, 72, 25, 14, 0], f: 'b' }],
+    face: [{ eye: [43, 70, 3] }, { eye: [57, 70, 3] }, { ov: [50, 77, 2.5, 2, 'd', 0, 1] }, { blush: [36, 75, 3.5] }, { blush: [64, 75, 3.5] }] },
+  { name: 'ふくろう', emoji: '🦉', pal: { b: '#b45309', l: '#fde68a', d: '#78350f' },
+    back: [{ p: [[30, 14], [27, 0], [40, 9]], f: 'b' }, { p: [[60, 9], [73, 0], [70, 14]], f: 'b' }, { e: [14, 64, 8, 20, 10], f: 'd' }, { e: [86, 64, 8, 20, -10], f: 'd' }, { e: [40, 97, 6, 3, 0], f: '#f59e0b' }, { e: [60, 97, 6, 3, 0], f: '#f59e0b' }],
+    body: [{ e: [50, 70, 33, 26, 0], f: 'l' }], front: [{ c: [50, 27, 22], f: 'b' }],
+    face: [{ ov: [41, 27, 8, 8, '#fff'] }, { ov: [59, 27, 8, 8, '#fff'] }, { eye: [41, 27, 3.6] }, { eye: [59, 27, 3.6] }, { poly: [[[47, 33], [53, 33], [50, 39]], '#f59e0b'] }] },
+  { name: 'ねずみ', emoji: '🐭', pal: { b: '#d1d5db', l: '#fbcfe8', d: '#6b7280' },
+    back: [{ c: [29, 12, 12], f: 'b' }, { c: [71, 12, 12], f: 'b' }, { c: [29, 12, 7], f: 'l', s: 0 }, { c: [71, 12, 7], f: 'l', s: 0 }, { p: [[84, 82], [98, 66], [99, 69], [86, 85]], f: 'l' }],
+    body: [BODY], front: [{ c: [50, 30, 19], f: 'b' }],
+    face: [{ eye: [43, 28, 3] }, { eye: [57, 28, 3] }, { ov: [50, 34, 2.2, 1.6, '#f472b6'] }, { catm: [50, 36.5, 3] }, { blush: [37, 34, 3.5] }, { blush: [63, 34, 3.5] }, { line: [30, 32, 40, 33] }, { line: [70, 32, 60, 33] }] },
+  { name: 'ひつじ', emoji: '🐑', pal: { b: '#f3f4f6', l: '#ffffff', d: '#57534e' },
+    back: [{ c: [17, 62, 10], f: 'b' }, { c: [20, 82, 10], f: 'b' }, { c: [38, 93, 9], f: 'b' }, { c: [62, 93, 9], f: 'b' }, { c: [80, 82, 10], f: 'b' }, { c: [83, 62, 10], f: 'b' }, { c: [72, 47, 10], f: 'b' }, { c: [28, 47, 10], f: 'b' }],
+    body: [{ e: [50, 70, 33, 23, 0], f: 'b' }],
+    front: [{ e: [31, 26, 8, 4, 20], f: 'd' }, { e: [69, 26, 8, 4, -20], f: 'd' }, { e: [50, 30, 14, 16, 0], f: 'd' }, { c: [50, 14, 9], f: 'b' }, { c: [42, 16, 7], f: 'b' }, { c: [58, 16, 7], f: 'b' }],
+    face: [{ ov: [44, 28, 3, 3.4, '#fff'] }, { ov: [56, 28, 3, 3.4, '#fff'] }, { eye: [44, 28.5, 1.8] }, { eye: [56, 28.5, 1.8] }, { smile: [50, 37, 3, '#fff'] }, { blush: [41, 35, 3] }, { blush: [59, 35, 3] }] }
 ];
 
 // ---------- ロボット（10問で1体・パーツは1問ごと） ----------
@@ -171,7 +233,12 @@ var ROBOTS = [
   { name: 'ミドリロボ', body: '#22c55e', dark: '#15803d' }, { name: 'キイロロボ', body: '#eab308', dark: '#a16207' },
   { name: 'ムラサキロボ', body: '#a855f7', dark: '#7e22ce' }, { name: 'オレンジロボ', body: '#f97316', dark: '#c2410c' },
   { name: 'ピンクロボ', body: '#ec4899', dark: '#be185d' }, { name: 'ミズイロロボ', body: '#06b6d4', dark: '#0e7490' },
-  { name: 'ギンロボ', body: '#94a3b8', dark: '#475569' }, { name: 'キンロボ', body: '#f59e0b', dark: '#b45309' }
+  { name: 'ギンロボ', body: '#94a3b8', dark: '#475569' }, { name: 'キンロボ', body: '#f59e0b', dark: '#b45309' },
+  { name: 'クロロボ', body: '#4b5563', dark: '#111827' }, { name: 'シロロボ', body: '#f1f5f9', dark: '#94a3b8' },
+  { name: 'ワカクサロボ', body: '#a3e635', dark: '#4d7c0f' }, { name: 'アイロボ', body: '#6366f1', dark: '#3730a3' },
+  { name: 'サクラロボ', body: '#fda4af', dark: '#e11d48' }, { name: 'ソラロボ', body: '#38bdf8', dark: '#0369a1' },
+  { name: 'チャイロロボ', body: '#b45309', dark: '#78350f' }, { name: 'レモンロボ', body: '#fde047', dark: '#ca8a04' },
+  { name: 'ミントロボ', body: '#6ee7b7', dark: '#047857' }, { name: 'ニジロボ', body: '#f472b6', dark: '#7c3aed' }
 ];
 var PARTS = ['あし（ひだり）', 'あし（みぎ）', 'からだ', 'うで（ひだり）', 'うで（みぎ）', 'あたま', 'め', 'アンテナ', 'むねの ボタン', 'ロケット'];
 
@@ -204,33 +271,59 @@ function robotSVG(ri, have, highlight) {
 
 // ---------- 迷路をつくる ----------
 function rng(seed) { var a = seed >>> 0; return function () { a = (a + 0x6D2B79F5) >>> 0; var t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
-function inside(shape, x, y) {
-  return shape.parts.some(function (q) {
-    if (q.c) { var dx = x - q.c[0], dy = y - q.c[1]; return dx * dx + dy * dy <= q.c[2] * q.c[2]; }
-    if (q.e) { var a = -q.e[4] * Math.PI / 180, X = x - q.e[0], Y = y - q.e[1], u = X * Math.cos(a) - Y * Math.sin(a), v = X * Math.sin(a) + Y * Math.cos(a); return (u * u) / (q.e[2] * q.e[2]) + (v * v) / (q.e[3] * q.e[3]) <= 1; }
-    if (q.r) return x >= q.r[0] && x <= q.r[0] + q.r[2] && y >= q.r[1] && y <= q.r[1] + q.r[3];
-    if (q.p) { var pts = q.p, ins = false; for (var i = 0, j = pts.length - 1; i < pts.length; j = i++) { var xi = pts[i][0], yi = pts[i][1], xj = pts[j][0], yj = pts[j][1]; if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) ins = !ins; } return ins; }
-    return false;
-  });
+function inPart(q, x, y) {
+  if (q.c) { var dx = x - q.c[0], dy = y - q.c[1]; return dx * dx + dy * dy <= q.c[2] * q.c[2]; }
+  if (q.e) { var a = -(q.e[4] || 0) * Math.PI / 180, X = x - q.e[0], Y = y - q.e[1], u = X * Math.cos(a) - Y * Math.sin(a), v = X * Math.sin(a) + Y * Math.cos(a); return (u * u) / (q.e[2] * q.e[2]) + (v * v) / (q.e[3] * q.e[3]) <= 1; }
+  if (q.r) return x >= q.r[0] && x <= q.r[0] + q.r[2] && y >= q.r[1] && y <= q.r[1] + q.r[3];
+  if (q.p) { var pts = q.p, ins = false; for (var i = 0, j = pts.length - 1; i < pts.length; j = i++) { var xi = pts[i][0], yi = pts[i][1], xj = pts[j][0], yj = pts[j][1]; if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) ins = !ins; } return ins; }
+  return false;
 }
+function inAny(parts, x, y) { return parts.some(function (q) { return inPart(q, x, y); }); }
 var DIRS = [[0, -1, 1, 4], [1, 0, 2, 8], [0, 1, 4, 1], [-1, 0, 8, 2]]; // dx, dy, このマスの扉, となりの扉（上・右・下・左）
+// レベル L → キャラ（20種類をくり返す）とむずかしさ（20問ごとに1段上がる）
 function levelInfo(L) {
-  var shape = SHAPES[(L - 1) % SHAPES.length];
-  var n = 9 + Math.round((L - 1) * 0.22);            // レベル1: 9マス → レベル100: 31マス（はじめは一本道ぽくして、やさしく）
-  var bias = Math.max(0.35, 0.92 - (L - 1) * 0.006); // 長い一本道（やさしい）→ 枝分かれが多い（むずかしい）
-  return { shape: shape, n: n, bias: bias };
+  var tier = Math.ceil(L / CHARS.length), ch = CHARS[(L - 1) % CHARS.length];
+  var target = TARGET_CELLS[Math.min(tier, TARGET_CELLS.length) - 1] * (tier > TARGET_CELLS.length ? 1 + (tier - TARGET_CELLS.length) * 0.15 : 1);
+  var n = gridFor(ch, target);                                // キャラごとに、迷路のマスの数がだいたい target になる細かさ
+  var bias = Math.max(0.36, 0.92 - (tier - 1) * 0.062);       // ★1: 長い一本道（やさしい）→ ★10: 枝分かれが多い
+  return { ch: ch, tier: tier, n: n, bias: bias, target: target };
+}
+var TARGET_CELLS = [24, 42, 66, 100, 140, 185, 235, 290, 350, 420]; // むずかしさ ★1〜★10 の迷路のマスの数のめやす
+function maskFor(ch, n) {
+  var cb = 100 / n, k = 0.12, ins = new Array(n * n).fill(false);
+  for (var y = 0; y < n; y++) for (var x = 0; x < n; x++) {
+    var pts = [[x + k, y + k], [x + 1 - k, y + k], [x + k, y + 1 - k], [x + 1 - k, y + 1 - k], [x + 0.5, y + 0.5]];
+    ins[y * n + x] = pts.every(function (p) { var X = p[0] * cb, Y = p[1] * cb; return inAny(ch.body, X, Y) && !inAny(ch.front, X, Y); });
+  }
+  return ins;
+}
+var gridMemo = {};
+function gridFor(ch, target) {
+  var key = ch.name + ':' + target; if (gridMemo[key]) return gridMemo[key];
+  for (var n = 6; n < 80; n++) if (maskFor(ch, n).filter(Boolean).length >= target) return (gridMemo[key] = n);
+  return (gridMemo[key] = 80);
 }
 function makeMaze(L) {
-  var info = levelInfo(L), n = info.n, shape = info.shape, R = rng(L * 9973 + 17);
-  var ins = new Array(n * n).fill(false);
-  for (var y = 0; y < n; y++) for (var x = 0; x < n; x++) ins[y * n + x] = inside(shape, (x + 0.5) / n * 100, (y + 0.5) / n * 100);
+  // 行き止まりが少なすぎる迷路（塗るところがない）にならないよう、少ないときは作り直す
+  var best = null;
+  for (var tryNo = 0; tryNo < 12; tryNo++) {
+    var mz = makeMazeOnce(L, tryNo), need = Math.max(4, Math.round(mz.ins.filter(Boolean).length * 0.22));
+    if (!best || mz.dead > best.dead) best = mz;
+    if (mz.dead >= need) return mz;
+  }
+  return best;
+}
+function makeMazeOnce(L, tryNo) {
+  var info = levelInfo(L), n = info.n, ch = info.ch, R = rng(L * 9973 + 17 + tryNo * 101);
+  // からだ（body）の中で、顔など（front）にかからないマスだけ使う（マスの4すみと真ん中で確かめる）
+  var ins = maskFor(ch, n);
   // いちばん大きくつながったところだけ使う
   var comp = new Array(n * n).fill(-1), best = -1, bestSize = 0, id = 0;
   for (var i = 0; i < n * n; i++) {
     if (!ins[i] || comp[i] >= 0) continue;
     var q = [i], size = 0; comp[i] = id;
     while (q.length) { var c = q.pop(); size++; var cx = c % n, cy = (c - cx) / n;
-      DIRS.forEach(function (d) { var nx = cx + d[0], ny = cy + d[1]; if (nx < 0 || ny < 0 || nx >= n || ny >= n) return; var k = ny * n + nx; if (ins[k] && comp[k] < 0) { comp[k] = id; q.push(k); } }); }
+      DIRS.forEach(function (d) { var nx = cx + d[0], ny = cy + d[1]; if (nx < 0 || ny < 0 || nx >= n || ny >= n) return; var kk = ny * n + nx; if (ins[kk] && comp[kk] < 0) { comp[kk] = id; q.push(kk); } }); }
     if (size > bestSize) { bestSize = size; best = id; } id++;
   }
   for (i = 0; i < n * n; i++) ins[i] = ins[i] && comp[i] === best;
@@ -240,20 +333,51 @@ function makeMaze(L) {
   while (cells.length) {
     var idx = R() < info.bias ? cells.length - 1 : Math.floor(R() * cells.length), cur = cells[idx];
     var ccx = cur % n, ccy = (cur - ccx) / n, opts = [];
-    DIRS.forEach(function (d) { var nx = ccx + d[0], ny = ccy + d[1]; if (nx < 0 || ny < 0 || nx >= n || ny >= n) return; var k = ny * n + nx; if (ins[k] && !seen[k]) opts.push([k, d]); });
+    DIRS.forEach(function (d) { var nx = ccx + d[0], ny = ccy + d[1]; if (nx < 0 || ny < 0 || nx >= n || ny >= n) return; var kk = ny * n + nx; if (ins[kk] && !seen[kk]) opts.push([kk, d]); });
     if (!opts.length) { cells.splice(idx, 1); continue; }
     var pick = opts[Math.floor(R() * opts.length)]; open[cur] |= pick[1][2]; open[pick[0]] |= pick[1][3]; seen[pick[0]] = true; cells.push(pick[0]);
   }
-  // スタートとゴール: いちばん遠い2つのマス
-  function bfs(s) { var dist = new Array(n * n).fill(-1), par = new Array(n * n).fill(-1), q = [s], h = 0; dist[s] = 0;
-    while (h < q.length) { var c = q[h++], cx = c % n, cy = (c - cx) / n; DIRS.forEach(function (d) { if (!(open[c] & d[2])) return; var k = (cy + d[1]) * n + cx + d[0]; if (dist[k] < 0) { dist[k] = dist[c] + 1; par[k] = c; q.push(k); } }); }
-    var far = s; for (var j = 0; j < n * n; j++) if (dist[j] > dist[far]) far = j; return { far: far, par: par, dist: dist }; }
+  // スタートとゴール: いちばん遠い2つのマス（スタートは左側）
+  function bfs(s) { var dist = new Array(n * n).fill(-1), par = new Array(n * n).fill(-1), qq = [s], h = 0; dist[s] = 0;
+    while (h < qq.length) { var c = qq[h++], cx = c % n, cy = (c - cx) / n; DIRS.forEach(function (d) { if (!(open[c] & d[2])) return; var kk = (cy + d[1]) * n + cx + d[0]; if (dist[kk] < 0) { dist[kk] = dist[c] + 1; par[kk] = c; qq.push(kk); } }); }
+    var far = s; for (var j = 0; j < n * n; j++) if (dist[j] > dist[far]) far = j; return { far: far, par: par }; }
   var a = bfs(first).far, b0 = bfs(a), b = b0.far;
-  // スタートは左寄り・上寄りにする（左から右へ進む方が分かりやすい）
-  var colA = a % n, colB = b % n; if (colB < colA) { var t = a; a = b; b = t; b0 = bfs(a); }
+  if (b % n < a % n) { var t = a; a = b; b = t; b0 = bfs(a); }
   var sol = new Array(n * n).fill(false), path = [], c2 = b; while (c2 >= 0) { sol[c2] = true; path.push(c2); c2 = b0.par[c2]; } path.reverse();
   var dead = 0; for (i = 0; i < n * n; i++) if (ins[i] && !sol[i]) dead++;
-  return { L: L, n: n, shape: shape, ins: ins, open: open, start: a, goal: b, sol: sol, path: path, dead: dead };
+  return { L: L, n: n, ch: ch, tier: info.tier, ins: ins, open: open, start: a, goal: b, sol: sol, path: path, dead: dead };
+}
+
+// ---------- キャラクターを描く（箱 0〜100 の座標のまま描く。呼ぶ前に拡大・移動しておく） ----------
+var INK = '#3f3f46';
+function col(ch, f) { return ch.pal[f] || f; }
+function shapePath(c, q) {
+  c.beginPath();
+  if (q.c) c.arc(q.c[0], q.c[1], q.c[2], 0, Math.PI * 2);
+  if (q.e) c.ellipse(q.e[0], q.e[1], q.e[2], q.e[3], (q.e[4] || 0) * Math.PI / 180, 0, Math.PI * 2);
+  if (q.r) { var r = q.r, rr = Math.min(r[2], r[3]) * 0.35; c.moveTo(r[0] + rr, r[1]); c.arcTo(r[0] + r[2], r[1], r[0] + r[2], r[1] + r[3], rr); c.arcTo(r[0] + r[2], r[1] + r[3], r[0], r[1] + r[3], rr); c.arcTo(r[0], r[1] + r[3], r[0], r[1], rr); c.arcTo(r[0], r[1], r[0] + r[2], r[1], rr); c.closePath(); }
+  if (q.p) { c.moveTo(q.p[0][0], q.p[0][1]); q.p.slice(1).forEach(function (p) { c.lineTo(p[0], p[1]); }); c.closePath(); }
+}
+function drawParts(c, ch, parts, lw) {
+  parts.forEach(function (q) { shapePath(c, q); c.fillStyle = col(ch, q.f); c.fill(); if (q.s !== 0) { c.lineWidth = lw; c.strokeStyle = INK; c.lineJoin = 'round'; c.stroke(); } });
+}
+function drawFace(c, ch, lw) {
+  ch.face.forEach(function (f) {
+    if (f.eye) { var e = f.eye; c.fillStyle = '#1f2937'; c.beginPath(); c.arc(e[0], e[1], e[2], 0, Math.PI * 2); c.fill(); c.fillStyle = '#fff'; c.beginPath(); c.arc(e[0] - e[2] * 0.35, e[1] - e[2] * 0.38, e[2] * 0.36, 0, Math.PI * 2); c.fill(); }
+    if (f.ov) { var o = f.ov; c.beginPath(); c.ellipse(o[0], o[1], o[2], o[3], (o[5] || 0) * Math.PI / 180, 0, Math.PI * 2); c.fillStyle = col(ch, o[4]); c.fill(); if (o[6]) { c.lineWidth = lw * 0.7; c.strokeStyle = INK; c.stroke(); } }
+    if (f.blush) { var bl = f.blush; c.globalAlpha = 0.45; c.fillStyle = '#fb7185'; c.beginPath(); c.ellipse(bl[0], bl[1], bl[2], bl[2] * 0.62, 0, 0, Math.PI * 2); c.fill(); c.globalAlpha = 1; }
+    if (f.smile) { var s = f.smile; c.strokeStyle = s[3] || INK; c.lineWidth = lw * 0.8; c.lineCap = 'round'; c.beginPath(); c.moveTo(s[0] - s[2], s[1]); c.quadraticCurveTo(s[0], s[1] + s[2] * 0.9, s[0] + s[2], s[1]); c.stroke(); }
+    if (f.catm) { var m = f.catm; c.strokeStyle = INK; c.lineWidth = lw * 0.8; c.lineCap = 'round'; c.beginPath(); c.moveTo(m[0] - m[2], m[1]); c.quadraticCurveTo(m[0] - m[2] / 2, m[1] + m[2] * 0.9, m[0], m[1]); c.quadraticCurveTo(m[0] + m[2] / 2, m[1] + m[2] * 0.9, m[0] + m[2], m[1]); c.stroke(); }
+    if (f.poly) { var pp = f.poly; c.beginPath(); c.moveTo(pp[0][0][0], pp[0][0][1]); pp[0].slice(1).forEach(function (p) { c.lineTo(p[0], p[1]); }); c.closePath(); c.fillStyle = col(ch, pp[1]); c.fill(); c.lineWidth = lw * 0.7; c.strokeStyle = INK; c.lineJoin = 'round'; c.stroke(); }
+    if (f.line) { var l = f.line; c.strokeStyle = INK; c.lineWidth = lw * 0.5; c.lineCap = 'round'; c.beginPath(); c.moveTo(l[0], l[1]); c.lineTo(l[2], l[3]); c.stroke(); }
+  });
+}
+// レベル一覧などで使う小さな絵（キャラだけ）
+function charThumb(ch, px) {
+  var c = document.createElement('canvas'), dpr = window.devicePixelRatio || 1; c.width = c.height = Math.round(px * dpr); c.style.width = c.style.height = px + 'px';
+  var x = c.getContext('2d'); x.scale(px * dpr / 104, px * dpr / 104); x.translate(2, 2);
+  drawParts(x, ch, ch.back, 1.6); drawParts(x, ch, ch.body, 1.6); drawParts(x, ch, ch.front, 1.6); drawFace(x, ch, 1.6);
+  return c;
 }
 
 // ---------- 保存 ----------
@@ -277,8 +401,8 @@ function renderHome() { var ri = Math.min(Math.floor((nextLevel() - 1) / 10), RO
 function renderLevels() {
   var h = '', nx = nextLevel();
   for (var L = 1; L <= LEVELS; L++) {
-    if ((L - 1) % 10 === 0) { var ri = (L - 1) / 10; h += '<div class="sec"><svg viewBox="0 0 200 200">' + robotSVG(ri, robotHave(ri)) + '</svg>' + ROBOTS[ri % ROBOTS.length].name + '（' + robotHave(ri) + ' / 10）</div>'; }
-    var sh = levelInfo(L).shape, cls = save.cleared[L] ? 'done' : !unlocked(L) ? 'lock' : L === nx ? 'next' : '';
+    if ((L - 1) % 10 === 0) { var ri = (L - 1) / 10, tr = levelInfo(L).tier; h += '<div class="sec"><svg viewBox="0 0 200 200">' + robotSVG(ri, robotHave(ri)) + '</svg>' + ROBOTS[ri % ROBOTS.length].name + '（' + robotHave(ri) + ' / 10）　むずかしさ ' + '★'.repeat(Math.min(tr, 5)) + (tr > 5 ? '×' + tr : '') + '</div>'; }
+    var sh = levelInfo(L).ch, cls = save.cleared[L] ? 'done' : !unlocked(L) ? 'lock' : L === nx ? 'next' : '';
     h += '<button class="lv ' + cls + '" data-l="' + L + '"><small>' + (save.cleared[L] ? '⭐' : unlocked(L) ? sh.emoji : '🔒') + '</small>' + L + '</button>';
   }
   $('lvGrid').innerHTML = h;
@@ -308,7 +432,7 @@ var G = null, mode = 'fill', cv = $('cv'), ctx = cv.getContext('2d'), geo = null
 function startLevel(L) {
   var m = makeMaze(L);
   G = { m: m, filled: new Array(m.n * m.n).fill(false), route: [m.start], strokes: [], done: !!save.cleared[L] && false, cleared: false };
-  $('lvTitle').textContent = 'レベル ' + L + '　' + m.shape.emoji + ' ' + m.shape.name;
+  $('lvTitle').textContent = 'レベル ' + L + '　' + m.ch.emoji + ' ' + m.ch.name + '　★' + m.tier;
   setMode('fill'); show('play'); requestAnimationFrame(layout);
   if (L === 1 && !save.seenHow) { save.seenHow = 1; persist(); $('howBtn').onclick(); }
 }
@@ -320,42 +444,33 @@ $('tClear').onclick = function () { if (!G || G.cleared) return; G.strokes.push(
 function layout() {
   if (!G) return;
   var st = $('stage'), W = Math.max(120, st.clientWidth - 16), H = Math.max(120, st.clientHeight - 8), dpr = window.devicePixelRatio || 1;
-  // 迷路のあるところ（マスの外枠）だけを画面いっぱいに大きく出す
-  var m = G.m, n = m.n, x0 = n, y0 = n, x1 = 0, y1 = 0;
-  for (var i = 0; i < n * n; i++) if (m.ins[i]) { var x = i % n, y = (i - x) / n; x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
-  var mg = 0.6, bw = x1 - x0 + 1 + mg * 2, bh = y1 - y0 + 1 + mg * 2, pad = 8;
-  var cs = Math.min((W - pad * 2) / bw, (H - pad * 2) / bh), cw = bw * cs + pad * 2, ch = bh * cs + pad * 2;
-  cv.style.width = cw + 'px'; cv.style.height = ch + 'px'; cv.width = Math.round(cw * dpr); cv.height = Math.round(ch * dpr);
+  // キャラ全体（箱 0〜100）を画面いっぱいに
+  var pad = 6, size = Math.min(W, H), s = (size - pad * 2) / 100;
+  cv.style.width = size + 'px'; cv.style.height = size + 'px'; cv.width = Math.round(size * dpr); cv.height = Math.round(size * dpr);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  geo = { w: cw, h: ch, cs: cs, ox: pad + (mg - x0) * cs, oy: pad + (mg - y0) * cs };
+  geo = { w: size, h: size, s: s, cs: s * 100 / G.m.n, ox: pad, oy: pad };
   draw();
 }
 window.addEventListener('resize', function () { if ($('play').classList.contains('on')) layout(); });
 function cellRect(i) { var n = G.m.n, x = i % n, y = (i - x) / n; return [geo.ox + x * geo.cs, geo.oy + y * geo.cs]; }
 function draw() {
   if (!G || !geo) return;
-  var m = G.m, n = m.n, cs = geo.cs;
+  var m = G.m, n = m.n, cs = geo.cs, ch = m.ch, i;
   ctx.clearRect(0, 0, geo.w, geo.h);
-  // どうぶつの形（うすい色）
-  ctx.save(); ctx.translate(geo.ox, geo.oy); ctx.scale(n * cs / 100, n * cs / 100); ctx.fillStyle = m.shape.color;
-  m.shape.parts.forEach(function (q) { ctx.beginPath();
-    if (q.c) ctx.arc(q.c[0], q.c[1], q.c[2], 0, Math.PI * 2);
-    if (q.e) ctx.ellipse(q.e[0], q.e[1], q.e[2], q.e[3], q.e[4] * Math.PI / 180, 0, Math.PI * 2);
-    if (q.r) ctx.rect(q.r[0], q.r[1], q.r[2], q.r[3]);
-    if (q.p) { ctx.moveTo(q.p[0][0], q.p[0][1]); q.p.slice(1).forEach(function (p) { ctx.lineTo(p[0], p[1]); }); ctx.closePath(); }
-    ctx.fill(); });
+  // キャラクター（うしろ → からだ → 顔まわり）
+  ctx.save(); ctx.translate(geo.ox, geo.oy); ctx.scale(geo.s, geo.s);
+  drawParts(ctx, ch, ch.back, 1.4); drawParts(ctx, ch, ch.body, 1.4); drawParts(ctx, ch, ch.front, 1.4);
   ctx.restore();
   // 迷路の床（白）
   ctx.fillStyle = '#fff';
-  for (var i = 0; i < n * n; i++) if (m.ins[i]) { var r = cellRect(i); ctx.fillRect(r[0] - 0.5, r[1] - 0.5, cs + 1, cs + 1); }
+  for (i = 0; i < n * n; i++) if (m.ins[i]) { var r = cellRect(i); ctx.fillRect(r[0] - 0.5, r[1] - 0.5, cs + 1, cs + 1); }
   // ぬりつぶし（えんぴつ色）。となりもぬってあって通路がつながっていれば、すきまなくつなぐ
-  var wall = Math.max(2, cs * 0.12), inset = wall * 0.5 + 1; // かべのすぐそばまで塗る（白いすきまが道に見えないように）
+  var wall = Math.max(2, cs * 0.12), inset = wall * 0.5 + 1;
   ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--pencil');
   for (i = 0; i < n * n; i++) if (G.filled[i]) { var rr = cellRect(i), x0 = rr[0] + inset, y0 = rr[1] + inset, w = cs - inset * 2;
     ctx.fillRect(x0, y0, w, w);
     if (G.filled[i + 1] && (m.open[i] & 2)) ctx.fillRect(x0 + w - 1, y0, inset * 2 + 2, w);
     if (G.filled[i + n] && (m.open[i] & 4)) ctx.fillRect(x0, y0 + w - 1, w, inset * 2 + 2);
-    // 正しい道とのつなぎ目は少しのばす（通路の入口まで）
     DIRS.forEach(function (d) { if (!(m.open[i] & d[2])) return; var k = i + d[1] * n + d[0]; if (!m.sol[k]) return;
       if (d[0] === 1) ctx.fillRect(x0 + w - 1, y0, inset + 1, w); if (d[0] === -1) ctx.fillRect(x0 - inset, y0, inset + 1, w);
       if (d[1] === 1) ctx.fillRect(x0, y0 + w - 1, w, inset + 1); if (d[1] === -1) ctx.fillRect(x0, y0 - inset, w, inset + 1); });
@@ -373,6 +488,8 @@ function draw() {
     if (!(m.open[i] & 4) && !(cy + 1 < n && m.ins[i + n])) { ctx.moveTo(X, Y + cs); ctx.lineTo(X + cs, Y + cs); }
   }
   ctx.stroke();
+  // 顔（目・口・ほっぺ）は迷路のあとに描く
+  ctx.save(); ctx.translate(geo.ox, geo.oy); ctx.scale(geo.s, geo.s); drawFace(ctx, ch, 1.4); ctx.restore();
   // スタート・ゴール
   var s = cellRect(m.start), g = cellRect(m.goal);
   ctx.fillStyle = '#22c55e'; ctx.beginPath(); ctx.arc(s[0] + cs / 2, s[1] + cs / 2, cs * 0.3, 0, Math.PI * 2); ctx.fill();
