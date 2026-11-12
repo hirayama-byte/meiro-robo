@@ -13,7 +13,7 @@
 <style>
   :root {
     --bg: #fff7ed; --card: #ffffff; --ink: #1f2937; --muted: #6b7280; --line: #e5e7eb;
-    --orange: #f97316; --teal: #0d9488; --pencil: #c4c7cc; --wall: #2b2f36; --path: #f97316;
+    --orange: #f97316; --teal: #0d9488; --pencil: #c4c7cc; --wall: #4a4f5c; --path: #f97316;
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font-family: "Hiragino Maru Gothic ProN", "Hiragino Sans", "Yu Gothic", system-ui, sans-serif; -webkit-user-select: none; user-select: none; overscroll-behavior: none; }
@@ -352,27 +352,59 @@ function makeMazeOnce(L, tryNo) {
 }
 
 // ---------- キャラクターを描く（箱 0〜100 の座標のまま描く。呼ぶ前に拡大・移動しておく） ----------
-var INK = '#3f3f46';
+var INK = '#5b3a2e';    // 目・口などの線（やわらかいこげ茶）
 function col(ch, f) { return ch.pal[f] || f; }
+// 色を明るく(+)・こく(-)する
+function shade(hex, t) {
+  if (!/^#[0-9a-f]{6}$/i.test(hex)) return hex;
+  var n = parseInt(hex.slice(1), 16), r = n >> 16, g = (n >> 8) & 255, bl = n & 255, to = t < 0 ? 0 : 255, k = Math.abs(t);
+  var f = function (v) { return Math.round(v + (to - v) * k); };
+  return 'rgb(' + f(r) + ',' + f(g) + ',' + f(bl) + ')';
+}
 function shapePath(c, q) {
   c.beginPath();
   if (q.c) c.arc(q.c[0], q.c[1], q.c[2], 0, Math.PI * 2);
   if (q.e) c.ellipse(q.e[0], q.e[1], q.e[2], q.e[3], (q.e[4] || 0) * Math.PI / 180, 0, Math.PI * 2);
-  if (q.r) { var r = q.r, rr = Math.min(r[2], r[3]) * 0.35; c.moveTo(r[0] + rr, r[1]); c.arcTo(r[0] + r[2], r[1], r[0] + r[2], r[1] + r[3], rr); c.arcTo(r[0] + r[2], r[1] + r[3], r[0], r[1] + r[3], rr); c.arcTo(r[0], r[1] + r[3], r[0], r[1], rr); c.arcTo(r[0], r[1], r[0] + r[2], r[1], rr); c.closePath(); }
+  if (q.r) { var r = q.r, rr = Math.min(r[2], r[3]) * 0.45; c.moveTo(r[0] + rr, r[1]); c.arcTo(r[0] + r[2], r[1], r[0] + r[2], r[1] + r[3], rr); c.arcTo(r[0] + r[2], r[1] + r[3], r[0], r[1] + r[3], rr); c.arcTo(r[0], r[1] + r[3], r[0], r[1], rr); c.arcTo(r[0], r[1], r[0] + r[2], r[1], rr); c.closePath(); }
   if (q.p) { c.moveTo(q.p[0][0], q.p[0][1]); q.p.slice(1).forEach(function (p) { c.lineTo(p[0], p[1]); }); c.closePath(); }
 }
+function partBox(q) { // 上下のはば（グラデーション用）
+  if (q.c) return [q.c[1] - q.c[2], q.c[1] + q.c[2]];
+  if (q.e) { var m = Math.max(q.e[2], q.e[3]); return [q.e[1] - m, q.e[1] + m]; }
+  if (q.r) return [q.r[1], q.r[1] + q.r[3]];
+  var ys = q.p.map(function (p) { return p[1]; }); return [Math.min.apply(null, ys), Math.max.apply(null, ys)];
+}
+// うしろの ふんわりした丸（キャラの色をうすく）
+function drawBackdrop(c, ch) {
+  var g = c.createRadialGradient(50, 52, 6, 50, 52, 54); g.addColorStop(0, shade(col(ch, 'b'), 0.72)); g.addColorStop(1, 'rgba(255,255,255,0)');
+  c.fillStyle = g; c.beginPath(); c.arc(50, 52, 54, 0, Math.PI * 2); c.fill();
+}
+// 体のパーツ: 上が明るいグラデーション＋同じ色のこい線＋つやの光
 function drawParts(c, ch, parts, lw) {
-  parts.forEach(function (q) { shapePath(c, q); c.fillStyle = col(ch, q.f); c.fill(); if (q.s !== 0) { c.lineWidth = lw; c.strokeStyle = INK; c.lineJoin = 'round'; c.stroke(); } });
+  parts.forEach(function (q) {
+    var base = col(ch, q.f), box = partBox(q);
+    shapePath(c, q);
+    if (/^#[0-9a-f]{6}$/i.test(base)) { var g = c.createLinearGradient(0, box[0], 0, box[1]); g.addColorStop(0, shade(base, 0.32)); g.addColorStop(0.55, base); g.addColorStop(1, shade(base, -0.08)); c.fillStyle = g; } else c.fillStyle = base;
+    c.fill();
+    if (q.s !== 0) { c.lineWidth = lw * 0.8; c.strokeStyle = shade(base === '#ffffff' || base === '#f8fafc' || base === '#f3f4f6' || base === '#f5f5f4' ? '#9ca3af' : base, -0.42); c.lineJoin = 'round'; c.stroke(); }
+    // つや（大きい丸い部分だけ）
+    var big = (q.c && q.c[2] >= 12) || (q.e && Math.min(q.e[2], q.e[3]) >= 12);
+    if (big && q.s !== 0) { var cx = q.c ? q.c[0] : q.e[0], cy = q.c ? q.c[1] : q.e[1], rx = q.c ? q.c[2] : q.e[2], ry = q.c ? q.c[2] : q.e[3];
+      c.save(); shapePath(c, q); c.clip(); c.globalAlpha = 0.35; c.fillStyle = '#fff'; c.beginPath(); c.ellipse(cx - rx * 0.38, cy - ry * 0.52, rx * 0.32, ry * 0.18, -0.5, 0, Math.PI * 2); c.fill(); c.restore(); }
+  });
 }
 function drawFace(c, ch, lw) {
   ch.face.forEach(function (f) {
-    if (f.eye) { var e = f.eye; c.fillStyle = '#1f2937'; c.beginPath(); c.arc(e[0], e[1], e[2], 0, Math.PI * 2); c.fill(); c.fillStyle = '#fff'; c.beginPath(); c.arc(e[0] - e[2] * 0.35, e[1] - e[2] * 0.38, e[2] * 0.36, 0, Math.PI * 2); c.fill(); }
-    if (f.ov) { var o = f.ov; c.beginPath(); c.ellipse(o[0], o[1], o[2], o[3], (o[5] || 0) * Math.PI / 180, 0, Math.PI * 2); c.fillStyle = col(ch, o[4]); c.fill(); if (o[6]) { c.lineWidth = lw * 0.7; c.strokeStyle = INK; c.stroke(); } }
-    if (f.blush) { var bl = f.blush; c.globalAlpha = 0.45; c.fillStyle = '#fb7185'; c.beginPath(); c.ellipse(bl[0], bl[1], bl[2], bl[2] * 0.62, 0, 0, Math.PI * 2); c.fill(); c.globalAlpha = 1; }
-    if (f.smile) { var s = f.smile; c.strokeStyle = s[3] || INK; c.lineWidth = lw * 0.8; c.lineCap = 'round'; c.beginPath(); c.moveTo(s[0] - s[2], s[1]); c.quadraticCurveTo(s[0], s[1] + s[2] * 0.9, s[0] + s[2], s[1]); c.stroke(); }
-    if (f.catm) { var m = f.catm; c.strokeStyle = INK; c.lineWidth = lw * 0.8; c.lineCap = 'round'; c.beginPath(); c.moveTo(m[0] - m[2], m[1]); c.quadraticCurveTo(m[0] - m[2] / 2, m[1] + m[2] * 0.9, m[0], m[1]); c.quadraticCurveTo(m[0] + m[2] / 2, m[1] + m[2] * 0.9, m[0] + m[2], m[1]); c.stroke(); }
-    if (f.poly) { var pp = f.poly; c.beginPath(); c.moveTo(pp[0][0][0], pp[0][0][1]); pp[0].slice(1).forEach(function (p) { c.lineTo(p[0], p[1]); }); c.closePath(); c.fillStyle = col(ch, pp[1]); c.fill(); c.lineWidth = lw * 0.7; c.strokeStyle = INK; c.lineJoin = 'round'; c.stroke(); }
-    if (f.line) { var l = f.line; c.strokeStyle = INK; c.lineWidth = lw * 0.5; c.lineCap = 'round'; c.beginPath(); c.moveTo(l[0], l[1]); c.lineTo(l[2], l[3]); c.stroke(); }
+    if (f.eye) { // 大きめのたまご形の目＋キラキラ2つ
+      var e = f.eye, r = e[2] * 1.3; c.fillStyle = '#2b2233'; c.beginPath(); c.ellipse(e[0], e[1], r * 0.92, r * 1.08, 0, 0, Math.PI * 2); c.fill();
+      c.fillStyle = '#fff'; c.beginPath(); c.arc(e[0] - r * 0.3, e[1] - r * 0.38, r * 0.4, 0, Math.PI * 2); c.fill();
+      c.beginPath(); c.arc(e[0] + r * 0.32, e[1] + r * 0.36, r * 0.17, 0, Math.PI * 2); c.fill(); }
+    if (f.ov) { var o = f.ov; c.beginPath(); c.ellipse(o[0], o[1], o[2], o[3], (o[5] || 0) * Math.PI / 180, 0, Math.PI * 2); c.fillStyle = col(ch, o[4]); c.fill(); if (o[6]) { c.lineWidth = lw * 0.55; c.strokeStyle = shade(col(ch, o[4]), -0.4); c.stroke(); } }
+    if (f.blush) { var bl = f.blush; c.globalAlpha = 0.55; c.fillStyle = '#ff8fab'; c.beginPath(); c.ellipse(bl[0], bl[1] + 0.5, bl[2] * 1.1, bl[2] * 0.66, 0, 0, Math.PI * 2); c.fill(); c.globalAlpha = 1; }
+    if (f.smile) { var s = f.smile; c.strokeStyle = s[3] || INK; c.lineWidth = lw * 0.7; c.lineCap = 'round'; c.beginPath(); c.moveTo(s[0] - s[2], s[1]); c.quadraticCurveTo(s[0], s[1] + s[2] * 0.95, s[0] + s[2], s[1]); c.stroke(); }
+    if (f.catm) { var m = f.catm; c.strokeStyle = INK; c.lineWidth = lw * 0.7; c.lineCap = 'round'; c.beginPath(); c.moveTo(m[0] - m[2], m[1]); c.quadraticCurveTo(m[0] - m[2] / 2, m[1] + m[2] * 0.9, m[0], m[1]); c.quadraticCurveTo(m[0] + m[2] / 2, m[1] + m[2] * 0.9, m[0] + m[2], m[1]); c.stroke(); }
+    if (f.poly) { var pp = f.poly; c.beginPath(); c.moveTo(pp[0][0][0], pp[0][0][1]); pp[0].slice(1).forEach(function (p) { c.lineTo(p[0], p[1]); }); c.closePath(); c.fillStyle = col(ch, pp[1]); c.fill(); c.lineWidth = lw * 0.55; c.strokeStyle = shade(col(ch, pp[1]), -0.4); c.lineJoin = 'round'; c.stroke(); }
+    if (f.line) { var l = f.line; c.globalAlpha = 0.6; c.strokeStyle = INK; c.lineWidth = lw * 0.4; c.lineCap = 'round'; c.beginPath(); c.moveTo(l[0], l[1]); c.lineTo(l[2], l[3]); c.stroke(); c.globalAlpha = 1; }
   });
 }
 // レベル一覧などで使う小さな絵（キャラだけ）
@@ -465,10 +497,12 @@ function draw() {
   ctx.save(); ctx.translate(view.tx, view.ty); ctx.scale(view.z, view.z); // 拡大しているときは、ぜんぶを拡大して描く
   // キャラクター（うしろ → からだ → 顔まわり）
   ctx.save(); ctx.translate(geo.ox, geo.oy); ctx.scale(geo.s, geo.s);
-  drawParts(ctx, ch, ch.back, 1.4); drawParts(ctx, ch, ch.body, 1.4); drawParts(ctx, ch, ch.front, 1.4);
+  drawBackdrop(ctx, ch); drawParts(ctx, ch, ch.back, 1.4); drawParts(ctx, ch, ch.body, 1.4); drawParts(ctx, ch, ch.front, 1.4);
   ctx.restore();
-  // 迷路の床（白）
-  ctx.fillStyle = '#fff';
+  // 迷路の床: からだの色をうんと うすくした色（おなかの模様のように見せる）。かべは そのキャラの こい色
+  var bodyCol = col(ch, ch.body[0].f), light = /^#f[0-9a-f]f[0-9a-f]f[0-9a-f]$/i.test(bodyCol) || bodyCol === '#ffffff';
+  var floorCol = light ? '#ffffff' : shade(bodyCol, 0.86), wallCol = light ? '#5b6170' : shade(bodyCol, -0.58);
+  ctx.fillStyle = floorCol;
   for (i = 0; i < n * n; i++) if (m.ins[i]) { var r = cellRect(i); ctx.fillRect(r[0] - 0.5, r[1] - 0.5, cs + 1, cs + 1); }
   // ぬりつぶし（えんぴつ色）。となりもぬってあって通路がつながっていれば、すきまなくつなぐ
   var wall = Math.max(2, cs * 0.12), inset = wall * 0.5 + 1;
@@ -486,7 +520,7 @@ function draw() {
   if (route.length > 1 || G.cleared) { ctx.strokeStyle = G.cleared ? '#f59e0b' : '#f97316'; ctx.lineWidth = Math.max(4, cs * 0.32); ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.globalAlpha = G.cleared ? 0.9 : 0.85; ctx.beginPath();
     route.forEach(function (c, k) { var r2 = cellRect(c); if (k) ctx.lineTo(r2[0] + cs / 2, r2[1] + cs / 2); else ctx.moveTo(r2[0] + cs / 2, r2[1] + cs / 2); }); ctx.stroke(); ctx.globalAlpha = 1; }
   // かべ
-  ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--wall'); ctx.lineWidth = wall; ctx.lineCap = 'round'; ctx.beginPath();
+  ctx.strokeStyle = wallCol; ctx.lineWidth = wall; ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.beginPath();
   for (i = 0; i < n * n; i++) { if (!m.ins[i]) continue; var r3 = cellRect(i), X = r3[0], Y = r3[1], cx = i % n, cy = (i - cx) / n;
     if (!(m.open[i] & 1)) { ctx.moveTo(X, Y); ctx.lineTo(X + cs, Y); }
     if (!(m.open[i] & 8)) { ctx.moveTo(X, Y); ctx.lineTo(X, Y + cs); }
